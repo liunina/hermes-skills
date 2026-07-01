@@ -1,0 +1,21 @@
+name: validate-skills
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check skill layout
+        run: |
+          test -f skills/wikijs/SKILL.md
+          test -d skills/wikijs/references
+          test -d skills/wikijs/scripts
+
+      - name: Compile Python scripts
+        run: |
+          python3 -m py_compile skills/wikijs/scripts/wiki-tree.py

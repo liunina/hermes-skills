@@ -23,6 +23,8 @@ docker exec your-postgres-container psql -U wikijs -d wikijs -t -A \
 
 **⚠️ 致命陷阱：** Shell 中直接嵌入 GraphQL query 会因 `\n`、`"`、`$` 等字符的转义层级问题导致 JSON 解析失败或静默写入错误内容。**始终用文件方式。**
 
+对于生产脚本，优先使用 GraphQL variables；如果使用字符串拼接，必须用 `json.dumps(..., ensure_ascii=False)` 生成安全的 GraphQL 字符串字面量。
+
 ```bash
 # 1. 取出 key
 docker exec your-postgres-container psql -U wikijs -d wikijs -t -A \
@@ -56,31 +58,37 @@ def wiki_api_key():
         capture_output=True, text=True)
     return r.stdout.strip()
 
+def gql_string(value: str) -> str:
+    """Return a safe GraphQL string literal via JSON escaping."""
+    return json.dumps(value, ensure_ascii=False)
+
+
 def create_page(title, content, path, description="", tags=None):
     """通过 GraphQL API 创建 Wiki.js 页面"""
     if tags is None:
         tags = []
-    
-    # 注意：GraphQL 字符串中的 \n 需要写成 \\n（JSON 转义后再被 GraphQL 解析）
+
+    # 用 json.dumps 生成安全的 GraphQL 字符串字面量，避免引号、反斜杠、
+    # 换行、$、{{ }} 等 Markdown 内容破坏 query。
     query = f'''mutation {{
   pages {{
     create(
-      content: "{content}",
-      title: "{title}",
-      description: "{description}",
-      path: "{path}",
+      content: {gql_string(content)},
+      title: {gql_string(title)},
+      description: {gql_string(description)},
+      path: {gql_string(path)},
       editor: "markdown",
       locale: "zh",
       isPublished: true,
       isPrivate: false,
-      tags: {json.dumps(tags)}
+      tags: {json.dumps(tags, ensure_ascii=False)}
     ) {{
       responseResult {{ succeeded message errorCode slug }}
       page {{ id path }}
     }}
   }}
 }}'''
-    
+
     key = wiki_api_key()
     r = subprocess.run(
         ['curl', '-s', 'https://your-wiki-domain.com/graphql',

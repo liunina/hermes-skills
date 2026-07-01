@@ -1,7 +1,14 @@
 ---
 name: wikijs
 description: Deploy and manage Wiki.js v2 — Docker deployment with PostgreSQL, nginx reverse proxy, locale configuration, and programmatic page structure management via PostgreSQL.
+version: 1.0.0
+author: liunina
 category: devops
+platforms: [linux]
+metadata:
+  hermes:
+    tags: [wikijs, docker, postgres, nginx, graphql, devops]
+    category: devops
 ---
 
 # Wiki.js v2 — 部署与管理
