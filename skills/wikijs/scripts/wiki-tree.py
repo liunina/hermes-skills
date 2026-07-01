@@ -46,14 +46,16 @@ def print_tree(
     prefix_path: str = "",
     indent: int = 0,
     pages: list[dict] | None = None,
+    path_map: dict[str, str] | None = None,
 ) -> None:
     """Print the tree, resolving titles with accumulated full paths."""
-    path_map = {page["path"]: page["title"] for page in (pages or [])}
+    if path_map is None:
+        path_map = {page["path"]: page["title"] for page in (pages or [])}
     for name in sorted(node.keys()):
         full_path = f"{prefix_path}/{name}" if prefix_path else name
         title = path_map.get(full_path, name)
         print(f"{'  ' * indent}├── {title}")
-        print_tree(node[name], full_path, indent + 1, pages)
+        print_tree(node[name], full_path, indent + 1, pages, path_map)
 
 
 def main() -> None:
