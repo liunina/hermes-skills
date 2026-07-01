@@ -23,6 +23,8 @@ docker exec your-postgres-container psql -U wikijs -d wikijs -t -A \
 
 **⚠️ 致命陷阱：** Shell 中直接嵌入 GraphQL query 会因 `\n`、`"`、`$` 等字符的转义层级问题导致 JSON 解析失败或静默写入错误内容。**始终用文件方式。**
 
+对于生产脚本，优先使用 **GraphQL variables**（见下方 Python `create_page` 示例 —— 把内容作为 JSON 值传输，彻底规避转义）；如果坚持字符串拼接，至少用 `json.dumps(..., ensure_ascii=False)` 生成安全的字符串字面量。
+
 ```bash
 # 1. 取出 key
 docker exec your-postgres-container psql -U wikijs -d wikijs -t -A \
@@ -57,37 +59,50 @@ def wiki_api_key():
     return r.stdout.strip()
 
 def create_page(title, content, path, description="", tags=None):
-    """通过 GraphQL API 创建 Wiki.js 页面"""
+    """通过 GraphQL API 创建 Wiki.js 页面（使用 GraphQL variables，最稳妥）"""
     if tags is None:
         tags = []
-    
-    # 注意：GraphQL 字符串中的 \n 需要写成 \\n（JSON 转义后再被 GraphQL 解析）
-    query = f'''mutation {{
-  pages {{
+
+    # 用 GraphQL variables 传参：content/title/description/path 等作为 JSON 值发送，
+    # 内容里的引号、反斜杠、换行、$、{{ }} 由 JSON 序列化处理，绝不会破坏 query
+    # 结构，无需任何手动转义。这是官方推荐、也是最稳妥的方式。
+    query = """
+mutation CreatePage(
+  $content: String!, $title: String!, $description: String!, $path: String!,
+  $editor: String!, $locale: String!,
+  $isPublished: Boolean!, $isPrivate: Boolean!, $tags: [String]!
+) {
+  pages {
     create(
-      content: "{content}",
-      title: "{title}",
-      description: "{description}",
-      path: "{path}",
-      editor: "markdown",
-      locale: "zh",
-      isPublished: true,
-      isPrivate: false,
-      tags: {json.dumps(tags)}
-    ) {{
-      responseResult {{ succeeded message errorCode slug }}
-      page {{ id path }}
-    }}
-  }}
-}}'''
-    
+      content: $content, title: $title, description: $description, path: $path,
+      editor: $editor, locale: $locale,
+      isPublished: $isPublished, isPrivate: $isPrivate, tags: $tags
+    ) {
+      responseResult { succeeded message errorCode slug }
+      page { id path }
+    }
+  }
+}
+"""
+    variables = {
+        "content": content,
+        "title": title,
+        "description": description,
+        "path": path,
+        "editor": "markdown",
+        "locale": "zh",
+        "isPublished": True,
+        "isPrivate": False,
+        "tags": tags,
+    }
+
     key = wiki_api_key()
     r = subprocess.run(
         ['curl', '-s', 'https://your-wiki-domain.com/graphql',
          '-X', 'POST',
          '-H', f'Authorization: Bearer {key}',
          '-H', 'Content-Type: application/json',
-         '-d', json.dumps({"query": query})],
+         '-d', json.dumps({"query": query, "variables": variables})],
         capture_output=True, text=True)
     
     result = json.loads(r.stdout)
@@ -97,10 +112,10 @@ def create_page(title, content, path, description="", tags=None):
     
     return result['data']['pages']['create']['page']
 
-# 使用示例
+# 使用示例（variables 方式：content 直接传真正的多行内容，无需双重转义）
 page = create_page(
     title="新页面",
-    content="# 标题\\n\\n内容...",
+    content="# 标题\n\n内容...",
     path="home/ops/new-page",
     description="通过 API 创建的页面"
 )

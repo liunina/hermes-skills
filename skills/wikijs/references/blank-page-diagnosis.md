@@ -61,19 +61,17 @@ sleep 10
 docker exec your-postgres-container psql -U wikijs -d wikijs -c "SELECT count(*) FROM \"pageTree\";"
 ```
 
-### 第 4 步：应用 Prism.js 补丁
+### 第 4 步：应用 Prism.js / TOC 安全补丁
 
 ```bash
 # 备份原始文件
 docker cp wikijs:/wiki/assets/js/theme0.js /tmp/theme0.js
 cp /tmp/theme0.js /tmp/theme0.js.bak
 
-# 四处修复
+# 两处安全修复（不要 patch registerButton，见 SKILL.md 说明）
 python3 << 'PYEOF'
 with open('/tmp/theme0.js') as f: c = f.read()
 c = c.replace('highlightAllUnder(this.$refs.container)', 'this.$refs.container&&highlightAllUnder(this.$refs.container)')
-c = c.replace('registerButton("copy-to-clipboard",e=>{', 'try{registerButton("copy-to-clipboard",e=>{')
-c = c.replace(';function i(){setTimeout(()=>{t.textContent="', '}catch(e){};function i(){setTimeout(()=>{t.textContent="')
 c = c.replace('e.tocDecoded.length', '(e.tocDecoded||[]).length')
 with open('/tmp/theme0.js','w') as f: f.write(c)
 print('Patched:', len(c), 'bytes')
