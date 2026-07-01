@@ -89,7 +89,7 @@ if not patched:
     )
     # Bug 2 — registerButton 不修复（⚠️ try 无法用于表达式上下文）
     # Bug 3 — tocDecoded 空指针
-    # ⚠️ 不要加 navPref "browse" 补丁 — 会让整个 Vue app 崩溃（见 SKILL.md 陷阱章节）
+    # ⚠️ 不要加 navPref "browse" 补丁 — 会让整个 Vue app 崩溃（见本文末「不要改 navPref」节）
     content = content.replace(
         'e.tocDecoded.length',
         '(e.tocDecoded||[]).length'
@@ -116,3 +116,11 @@ curl -s https://your-wiki-domain.com/_assets/js/theme0.js | grep -c 'refs.contai
 curl -s https://your-wiki-domain.com/ | grep -c 'app-error\|Oops'
 # 应输出: 0
 ```
+
+## ⚠️ 陷阱：不要改 navPref 默认值为 "browse"
+
+**症状：** 页面显示原始 Markdown 源码（`#`、`##`、`- [链接]` 等标记全部可见），所有内容挤在一行。SSR 源码正常（`<page>` 组件存在），但客户端 Vue app 完全未运行。
+
+**根因：** 修改 theme0.js 的 `getItem("navPref")||"custom"` 为 `||"browse"` 后，侧栏组件的 `mounted()` 钩子立即调用 `loadFromCurrentPath()`，该方法发起 GraphQL 查询。如果查询失败或抛出未捕获异常，整个 Vue 组件树崩溃，Markdown 渲染器不会执行，`<div>` 中的原始 Markdown 直接暴露在页面上。错误为静默崩溃 — 浏览器 Console 可能无明显报错。
+
+**结论：** 不要在 theme0.js 中修改 navPref 默认值。如需默认显示目录树，应在 Wiki.js 管理后台将导航模式设为「Tree」而非「MIXED」。

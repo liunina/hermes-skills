@@ -121,3 +121,27 @@ cd /opt/workspace/wikijs && docker compose up -d --force-recreate
 ```
 
 **调试最佳实践：** 不要修改源码，使用三步诊断法（list → flushCache → create）推断权限问题。
+
+## 从 key 字符串解码绑定的组（调试用）
+
+API Key 是 JWT，`grp`（绑定组）和 `api`（key ID）都在 payload 里，可直接解码查看：
+
+```python
+import base64, json
+payload = key.split('.')[1] + '=' * (4 - len(key.split('.')[1]) % 4)
+data = json.loads(base64.urlsafe_b64decode(payload))
+print(f"group={data['grp']}, api_id={data['api']}")
+```
+
+查看所有 Key 的吊销/过期状态：
+```sql
+SELECT id, name, "isRevoked", expiration FROM "apiKeys";
+```
+
+## Mutation 权限的字段级细粒度
+
+Wiki.js 对同一个 `update` mutation 的不同字段检查不同权限：
+- 只更新 `description` → 检查 `manage:pages`
+- 更新 `content` → 检查 `write:pages`（**单独校验！**）
+
+所以可能出现"能改 description 但不能改 content"的情况，根因是组权限或 pageRules 不完整（见 `page-rules.md`）。

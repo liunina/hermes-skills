@@ -27,13 +27,15 @@ nginx -t && nginx -s reload
 curl -s https://your-wiki-domain.com/ | grep -o '<div id="root">[^<]*'
 ```
 
-| 看到什么 | 跳到 |
-|---------|------|
-| `<div id="root"><page` ... | 第 2 步（客户端问题） |
-| `<div id="root"><!----></div>` | 第 A 步（可能是客户端崩溃或 SSR 换行符问题） |
-| `<div id="root">` 空 | 第 0 步（nginx 端口） |
-| "Page has no rendered version" | render 字段为 NULL |
-| "Error \| Wiki" | render 是预渲染 HTML |
+| SSR 输出特征 | 根因 | 修复 / 跳到 |
+|------------|------|-----------|
+| `<div id="root">` 空（无内容，非 `<!---->`） | nginx `proxy_pass` 端口与 Docker 映射不匹配 | 第 0 步 |
+| `<div id="root"><page` 有内容但浏览器白屏 + Console `ReferenceError: $json is not defined` | 内容 `{{ }}` / `$变量` 被 Vue 当模板表达式 | `{{ → { {`、`$ → \$`（见 vue-template-injection.md）；否则第 2 步 |
+| `<div id="root"><!----></div>` 完全空 | content 换行是字面量 `\n`，或客户端崩溃 | 第 2 步查换行符；用 `$$` 重写 content（见 sql-page-management.md） |
+| "Page has no rendered version" | `render` 字段为 NULL | 设 `render = content` |
+| "Error \| Wiki" + app-error | `render` 是预渲染 HTML | 设 `render = content`（Markdown 原文） |
+| 有 `<page>` 但浏览器显示原始 Markdown（`#` `##` `-` 可见） | Vue app 崩溃，常见根因：navPref "browse" 补丁使侧栏 mounted 时 GraphQL 崩溃 | 检查 theme0.js 补丁（见 prism-blank-page-patch.md「不要改 navPref」节）；第 4 步 |
+| 有 `<page>` 但浏览器白屏、Console 无明显报错 | 浏览器缓存旧 JS，或 Prism/TOC 崩溃 | 第 4 步补丁 + 第 5 步清缓存 |
 
 ### 第 2 步：检查数据库
 
@@ -68,7 +70,7 @@ docker exec your-postgres-container psql -U wikijs -d wikijs -c "SELECT count(*)
 docker cp wikijs:/wiki/assets/js/theme0.js /tmp/theme0.js
 cp /tmp/theme0.js /tmp/theme0.js.bak
 
-# 两处安全修复（不要 patch registerButton，见 SKILL.md 说明）
+# 两处安全修复（不要 patch registerButton，见 prism-blank-page-patch.md Bug 2）
 python3 << 'PYEOF'
 with open('/tmp/theme0.js') as f: c = f.read()
 c = c.replace('highlightAllUnder(this.$refs.container)', 'this.$refs.container&&highlightAllUnder(this.$refs.container)')
