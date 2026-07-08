@@ -15,7 +15,16 @@ jobs:
           test -f skills/wikijs/SKILL.md
           test -d skills/wikijs/references
           test -d skills/wikijs/scripts
+          test -f skills/ecom-details-image/SKILL.md
+          test -d skills/ecom-details-image/references
+          test -d skills/ecom-details-image/references/templates
+          test -d skills/ecom-details-image/scripts
 
       - name: Compile Python scripts
         run: |
           python3 -m py_compile skills/wikijs/scripts/wiki-tree.py
+          python3 -m py_compile skills/ecom-details-image/scripts/generate_image.py
+
+      - name: Validate JSON templates
+        run: |
+          find skills/ecom-details-image/references/templates -name '*.json' -print -exec python3 -m json.tool {} \; >/dev/null
