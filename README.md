@@ -13,7 +13,7 @@ This repository is organized as a Hermes skill tap. Skills live under `skills/<n
 
 | Skill | Category | Description |
 |---|---|---|
-| `ecom-details-image` | ecommerce | 创建以转化为目标的电商图片简报、PDP/社媒/广告 Prompt、Campaign Style Lock，并可通过 OpenAI 兼容图片 API 直接生图。详见 [中文使用指南](./skills/ecom-details-image/README.md)。 |
+| `ecom-details-image` | ecommerce | 创建以转化为目标的电商图片简报、PDP/社媒/广告 Prompt、Campaign Style Lock，并可通过 OpenAI/ChatGPT、Google Gemini 或 apimart.ai 直接生图。详见 [中文使用指南](./skills/ecom-details-image/README.md)。 |
 | `wikijs` | devops | Deploy and manage Wiki.js v2 — Docker deployment with PostgreSQL, nginx reverse proxy, locale configuration, GraphQL API CRUD, and programmatic page management. |
 
 ## Installation

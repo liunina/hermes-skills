@@ -1,118 +1,133 @@
 ---
 name: ecom-details-image
-description: Create conversion-oriented ecommerce image briefs, product hero/PDP/social/ad prompts, and optionally generate images with an OpenAI-compatible image API. Use for product image strategy, Campaign Style Lock, Amazon/Shopify/TikTok Shop detail pages, social creatives, UGC/live-stream scenes, virtual try-on, flat lays, detail macro shots, packaging, infographics, or direct prompt-to-image generation from product references.
+description: 创建以转化为目标的电商图片简报、商品主图、详情页 PDP、社媒广告图、UGC、直播间、虚拟试穿、平铺图、细节图、包装图、信息图和 Campaign 组图 Prompt，并可调用 OpenAI/ChatGPT 图片 API、Google Gemini 或 apimart.ai 直接生成图片。适用于产品视觉策略、Campaign Style Lock、多图风格统一、产品参考图生图和跨境/国内电商视觉生产。
 metadata:
   hermes:
-    version: 1.0.0
+    version: 1.1.0
     author: liunina
-    tags: [ecommerce, image-generation, product-photography, prompt, ads, pdp]
+    tags: [ecommerce, image-generation, product-photography, prompt, ads, pdp, openai, gemini]
     category: ecommerce
     platforms: [linux, macos]
 ---
 
-# E-commerce Details Image
+# 电商图片生成
 
-Use this skill to plan and generate ecommerce visual assets. The skill supports two modes:
+使用本 Skill 规划和生成电商视觉素材。默认文档、示例、图中文字建议和解释都以中文为主；最终生图 Prompt 默认使用英文，除非用户明确要求中文 Prompt 或需要中文图中文字。
 
-- **Brief / Prompt mode**: produce a visual brief, conversion diagnosis, Campaign Style Lock, and final image prompts.
-- **Generate mode**: when the user explicitly asks to generate/render images, write prompt files and call `scripts/generate_image.py`.
+本 Skill 有两种工作模式：
 
-Never ask for, print, commit, or echo real API keys. If image generation is requested but API config is missing, return the prompts and explain the required `.env` variables.
+- **Brief / Prompt 模式**：只输出视觉简报、转化诊断、Campaign Style Lock 和最终生图 Prompt，不调用 API。
+- **Generate 模式**：当用户明确要求“生成图片、直接出图、调用 API、render image”时，先产出 Prompt，再调用 `scripts/generate_image.py`。
 
-## Core Workflow
+不要索要、打印、提交或回显真实 API Key。缺少 API 配置时，返回 Prompt 和配置说明，不要尝试调用脚本。
 
-1. Identify the product, target platform, image use case, audience, product category, aspect ratio, text requirements, and negative constraints.
-2. Match the request to one or more templates under `references/templates/`. Read only the relevant template files.
-3. For ecommerce product, ad, PDP, or campaign work, diagnose the dominant conversion driver:
-   - visual desirability
-   - pain-point removal
-   - emotional/status value
-   - trust/proof
-4. For any multi-image output, define a **Campaign Style Lock** before writing individual prompts. Reuse the exact same lock in every prompt.
-5. Write concise, executable image prompts. Use English by default unless the user requests another language.
-6. Include concrete numeric constraints for product scale, whitespace, palette hex codes, platform overlay-safe areas, and in-image text.
-7. If direct generation is requested, call `scripts/generate_image.py`; pass `--image` when the user provides a product reference photo.
-8. Return generated paths, final prompts, assumptions, and any missing configuration.
+## 核心流程
 
-## Template Selection
+1. 明确产品、目标平台、图片用途、受众、品类、比例、是否需要图中文字、参考图路径和负面约束。
+2. 判断是单图、社媒组图、广告组图，还是完整 PDP/详情页图片包。
+3. 从 `references/templates/` 匹配模板，只读取相关模板。
+4. 对商品图、广告图、PDP 图先做转化驱动力诊断：
+   - 视觉吸引
+   - 痛点消除
+   - 情绪/身份价值
+   - 信任证明
+5. 多图任务必须先定义 **Campaign Style Lock**，并把同一段锁定规则原样放入每张 Prompt。
+6. 写 Prompt 时必须给出可执行约束：色值、产品占比、留白、光线、构图、平台安全区、图中文字和负面约束。
+7. 直出图片时，根据配置选择提供方：
+   - `openai`：OpenAI / ChatGPT 图片 API。
+   - `gemini`：Google Gemini 图片生成。
+   - `apimart`：apimart.ai 异步轮询兼容。
+8. 返回生成文件路径、最终 Prompt、关键假设和下一步建议。
 
-Use this map to choose templates:
+## 何时读取参考文件
 
-| Request | Template |
+- 写电商转化 Prompt、多图一致性、UGC 真实感、图中文字或 PDP 图片包时，读取 `references/prompt-rules.md`。
+- 配置 OpenAI、Gemini、apimart 或调试脚本参数时，读取 `references/api-config.md`。
+- 需要了解导入来源和授权注意事项时，读取 `references/upstream.md`。
+
+## 模板选择
+
+| 用户需求 | 模板 |
 |---|---|
-| hero, main image, white background, packshot | `01-hero-image.json` |
-| lifestyle, scene, room, outdoor use | `02-lifestyle-scene.json` |
-| flat lay, top-down, arrangement | `03-flat-lay.json` |
-| detail, macro, texture, material | `04-detail-macro.json` |
-| poster, banner, promotion, sale | `05-poster-banner.json` |
-| social, Instagram, TikTok, Xiaohongshu, X/Twitter | `06-social-media.json` |
-| UGC, buyer show, review style, phone photo | `07-ugc-style.json` |
-| model, apparel on body, fashion model | `08-model-showcase.json` |
-| before/after, comparison, result | `09-before-after.json` |
-| packaging, box, unboxing, gift set | `10-packaging.json` |
-| infographic, A+ content, PDP detail module | `11-infographic.json` |
-| creative concept, brand visual, surreal ad | `12-creative-concept.json` |
-| size, specs, usage steps | `13-size-spec.json` |
-| bundle, kit, multiple products | `14-multi-product.json` |
-| livestream, live commerce, host scene | `15-livestream.json` |
-| virtual try-on, inserted into real scene | `16-try-on-virtual.json` |
-| exploded view, structure, components | `17-exploded-view.json` |
-| ghost mannequin, invisible model | `18-ghost-mannequin.json` |
-| grid, multi-angle, 360 view | `19-multi-angle-grid.json` |
-| magazine, editorial, cover | `20-magazine-editorial.json` |
-| seasonal campaign, holiday, four seasons | `21-seasonal-campaign.json` |
-| luxury, premium atmosphere, smoke, reflection | `22-luxury-atmospherics.json` |
-| device mockup, app screen, SaaS | `23-device-mockup.json` |
-| storefront, retail display, shelf | `24-storefront.json` |
-| sports, fitness, outdoor active campaign | `25-sports-campaign.json` |
+| 主图、白底图、纯色底、packshot | `01-hero-image.json` |
+| 场景图、生活方式、家居、户外 | `02-lifestyle-scene.json` |
+| 平铺、俯拍、搭配陈列 | `03-flat-lay.json` |
+| 细节、材质、纹理、工艺 | `04-detail-macro.json` |
+| 海报、Banner、促销 | `05-poster-banner.json` |
+| 小红书、Instagram、TikTok、X/Twitter | `06-social-media.json` |
+| UGC、买家秀、真实评价、手机随拍 | `07-ugc-style.json` |
+| 模特、真人上身、服装展示 | `08-model-showcase.json` |
+| 前后对比、效果对比 | `09-before-after.json` |
+| 包装、礼盒、开箱 | `10-packaging.json` |
+| 信息图、A+ Content、详情页卖点图 | `11-infographic.json` |
+| 创意概念、品牌大片、艺术广告 | `12-creative-concept.json` |
+| 尺寸、规格、步骤 | `13-size-spec.json` |
+| 套装、组合、多 SKU | `14-multi-product.json` |
+| 直播、带货、直播间截图 | `15-livestream.json` |
+| 虚拟试穿、产品融入场景 | `16-try-on-virtual.json` |
+| 拆解图、爆炸图、结构说明 | `17-exploded-view.json` |
+| 隐形人台、服装 3D 展示 | `18-ghost-mannequin.json` |
+| 多角度、网格、360 展示 | `19-multi-angle-grid.json` |
+| 杂志、封面、编辑部大片 | `20-magazine-editorial.json` |
+| 节日、季节、主题 Campaign | `21-seasonal-campaign.json` |
+| 轻奢、高级氛围、精品质感 | `22-luxury-atmospherics.json` |
+| 设备样机、App、SaaS、屏幕展示 | `23-device-mockup.json` |
+| 店铺、门店、货架、展柜 | `24-storefront.json` |
+| 运动、健身、户外 Campaign | `25-sports-campaign.json` |
 
-If nothing matches, start from `01-hero-image.json` and adapt.
+无明显匹配时，从 `01-hero-image.json` 开始，再按用户场景组合其他模板。
 
-## PDP Defaults
+## PDP 默认图片包
 
-When the user asks for a full ecommerce detail page, Amazon PDP, Shopify product page, A+ content, or a complete product image set, plan:
+当用户提到“详情页、PDP、Amazon A+、Shopify 商品页、主图堆栈、整套商品图、商品详情图片”时，默认规划：
 
-- 5 square hero/main images
-- 7-9 vertical detail images
-- one shared Campaign Style Lock
-- a conversion sequence from first-click clarity to trust and CTA
+- 5 张方形主图。
+- 7-9 张竖版详情页图。
+- 1 段共享 Campaign Style Lock。
+- 从“首屏理解”到“信任和行动”的转化顺序。
 
-Use these default modules unless the product needs a different sequence:
+默认模块：
 
-- H1: hero claim and product recognition
-- H2: material or core function close-up
-- H3: lifestyle scene
-- H4: comparison or before/after
-- H5: offer, trust, logistics, or CTA
-- D1: who it is for and what problem it solves
-- D2: pain point
-- D3: mechanism or structure
-- D4: 2-4 key benefits
-- D5: usage steps
-- D6: scenarios
-- D7: comparison
-- D8: trust proof
-- D9: FAQ, risk reversal, or CTA
+- H1：首图，一眼看懂产品和核心承诺。
+- H2：材质、功能或核心卖点特写。
+- H3：典型使用场景。
+- H4：对比、前后差异或升级理由。
+- H5：优惠、保障、物流或 CTA。
+- D1：为谁解决什么问题。
+- D2：痛点放大。
+- D3：机制或结构解释。
+- D4：2-4 个核心利益。
+- D5：使用步骤。
+- D6：场景覆盖。
+- D7：对比选择。
+- D8：信任背书。
+- D9：FAQ、风险逆转或 CTA。
 
-## Prompt Rules
+## 提供方选择建议
 
-Before writing final prompts, read `references/prompt-rules.md` when the task involves ecommerce conversion, UGC/social realism, in-image text, PDP packs, or multi-image consistency.
+- **OpenAI / ChatGPT**：优先用于标准电商主图、产品一致性要求高、需要 OpenAI 官方图片 API 的场景。
+- **Google Gemini**：优先用于需要 Gemini 图像能力、已有 Google API Key、或想对比 Gemini 出图风格的场景。
+- **apimart**：保留给已有 apimart.ai 工作流或需要其异步轮询接口的用户。
 
-For direct API generation, read `references/api-config.md` if configuration, provider mode, image reference handling, or CLI flags matter.
+用户未指定时，根据 `.env` 自动判断；更推荐明确设置 `IMG_PROVIDER=openai` 或 `IMG_PROVIDER=gemini`。
 
-## Generation
+## 生图示例
 
-Examples:
+OpenAI / ChatGPT：
 
 ```bash
 python3 scripts/generate_image.py \
+  --provider openai \
   --prompt "clean product hero image, #FFFFFF background, product occupies 38% of frame" \
   --size 1:1 \
   --resolution 2k
 ```
 
+Google Gemini：
+
 ```bash
 python3 scripts/generate_image.py \
+  --provider gemini \
   --prompt-file prompt.txt \
   --image product.jpg \
   --output-dir generated-images \
@@ -120,8 +135,20 @@ python3 scripts/generate_image.py \
   --resolution 2k
 ```
 
-Use `.env.example` as the configuration template. Put the real `.env` outside version control.
+使用 `.env.example` 创建本地 `.env`。真实 `.env` 不要提交到仓库。
 
-## Attribution
+## 交付格式
 
-This skill is adapted from `liangdabiao/ecom-details-image` and reorganized for the `hermes-skills` tap. The upstream repository did not declare a license at the time this skill was added; review licensing before redistributing or merging into production distributions.
+默认回复结构：
+
+1. 关键假设。
+2. 转化驱动力诊断。
+3. Campaign Style Lock。
+4. 图片序列规划。
+5. 每张图的最终 Prompt。
+6. 如果已直出图片，列出生成文件路径。
+7. 如果未直出图片，列出需要补齐的 API 配置。
+
+## 来源说明
+
+本 Skill 改编自 `liangdabiao/ecom-details-image`，并重构为 `hermes-skills` skill tap 结构。上游仓库导入时未声明 License，正式再分发前应确认授权。

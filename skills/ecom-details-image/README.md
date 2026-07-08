@@ -2,6 +2,12 @@
 
 `ecom-details-image` 是一个面向电商视觉生产的 Hermes/Codex Skill。它可以帮助你把一张产品图和一句需求，整理成完整的电商视觉方案、可执行生图 Prompt，并在配置图片生成 API 后直接调用脚本出图。
 
+当前脚本明确支持三类提供方：
+
+- `openai`：OpenAI / ChatGPT 图片 API。
+- `gemini`：Google Gemini 图片生成。
+- `apimart`：apimart.ai 异步轮询兼容。
+
 适合场景：
 
 - 商品主图、白底图、纯色底产品图
@@ -17,6 +23,7 @@
 - [工作模式](#工作模式)
 - [安装方式](#安装方式)
 - [API 配置](#api-配置)
+- [如何选择 OpenAI / Gemini](#如何选择-openai--gemini)
 - [快速开始](#快速开始)
 - [常见使用示例](#常见使用示例)
 - [完整详情页图片包](#完整详情页图片包)
@@ -46,7 +53,7 @@ flowchart TB
     A --> B["Brief / Prompt 模式<br/>输出视觉简报和 Prompt"]
     A --> G["Generate 模式<br/>调用生图脚本"]
     G --> P["scripts/generate_image.py"]
-    P --> API["OpenAI 兼容图片 API<br/>或 apimart.ai 异步任务"]
+    P --> API["OpenAI / ChatGPT<br/>Google Gemini<br/>apimart.ai"]
     API --> O["generated-images/<br/>生成图片文件"]
 ```
 
@@ -111,8 +118,8 @@ sequenceDiagram
     Agent->>Agent: 匹配模板并生成 Prompt
     Agent->>Script: 传入 prompt-file、image、size、output-dir
     Script->>API: 提交图片生成请求
-    API-->>Script: 返回 b64/url 或 task_id
-    Script->>API: 异步模式下轮询任务状态
+    API-->>Script: 返回 b64/url/output_image 或 task_id
+    Script->>API: apimart 异步模式下轮询任务状态
     Script->>Disk: 保存图片文件
     Agent-->>User: 返回图片路径和 Prompt
 ```
@@ -171,39 +178,88 @@ cd skills/ecom-details-image
 cp .env.example .env
 ```
 
-编辑 `.env`：
+编辑 `.env`。推荐显式写明 `IMG_PROVIDER`，不要只靠自动判断。
+
+### 方案 A：OpenAI / ChatGPT
+
+适合标准商品主图、详情页图、参考产品图生图，以及希望使用 OpenAI 官方图片 API 的场景。
 
 ```dotenv
-IMG_BASE_URL=https://api.apimart.ai/v1
+IMG_PROVIDER=openai
+IMG_BASE_URL=https://api.openai.com/v1
 IMG_MODEL=gpt-image-2
-IMG_API_KEY=your-api-key
+IMG_API_KEY=your-openai-api-key
 ```
 
-支持的环境变量：
+### 方案 B：Google Gemini
+
+适合已有 Google API Key、想使用 Gemini 图像能力，或想与 OpenAI 出图风格对比的场景。
+
+```dotenv
+IMG_PROVIDER=gemini
+IMG_BASE_URL=https://generativelanguage.googleapis.com/v1beta
+IMG_MODEL=gemini-3.1-flash-image
+GEMINI_API_KEY=your-gemini-api-key
+```
+
+### 方案 C：apimart.ai
+
+保留给已有 apimart.ai 工作流的用户。
+
+```dotenv
+IMG_PROVIDER=apimart
+IMG_BASE_URL=https://api.apimart.ai/v1
+IMG_MODEL=gpt-image-2
+IMG_API_KEY=your-apimart-api-key
+IMG_API_MODE=async
+```
+
+### 变量说明
 
 | 变量 | 说明 |
 |---|---|
-| `IMG_BASE_URL` | API 根地址 |
-| `IMG_MODEL` | 图片模型名称 |
-| `IMG_API_KEY` | API Key |
-| `IMG_API_MODE` | 可选，`sync` 或 `async` |
+| `IMG_PROVIDER` | 图片提供方：`openai`、`gemini`、`apimart` |
+| `IMG_BASE_URL` | API 根地址，不填时按 provider 使用默认地址 |
+| `IMG_MODEL` | 图片模型名，不填时按 provider 使用默认模型 |
+| `IMG_API_KEY` | OpenAI/apimart 通用 API Key，也可给 Gemini 使用 |
+| `GEMINI_API_KEY` | Gemini 推荐 API Key 变量 |
+| `IMG_API_MODE` | 仅 apimart 兼容模式使用，`sync` 或 `async` |
 
 兼容别名：
 
-| 标准变量 | 兼容别名 |
+| 标准用途 | 兼容别名 |
 |---|---|
-| `IMG_BASE_URL` | `OPENAI_BASE_URL`, `OPENAI_API_BASE`, `BASE_URL` |
-| `IMG_MODEL` | `OPENAI_IMAGE_MODEL`, `IMAGE_MODEL`, `OPENAI_MODEL` |
-| `IMG_API_KEY` | `OPENAI_API_KEY`, `API_KEY` |
+| OpenAI Key | `OPENAI_API_KEY`, `API_KEY` |
+| Gemini Key | `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_GENAI_API_KEY`, `IMG_API_KEY`, `API_KEY` |
+| 模型名 | `OPENAI_IMAGE_MODEL`, `IMAGE_MODEL`, `OPENAI_MODEL`, `GEMINI_MODEL` |
+| API 根地址 | `OPENAI_BASE_URL`, `OPENAI_API_BASE`, `BASE_URL`, `GEMINI_BASE_URL` |
 
-模式判断：
+自动判断规则：
 
-- `IMG_API_MODE=async`：强制异步模式。
-- `IMG_API_MODE=sync`：强制同步模式。
-- 未设置时，`IMG_BASE_URL` 包含 `apimart` 会自动走异步模式。
-- 其他 URL 默认走 OpenAI 兼容同步模式。
+- `IMG_BASE_URL` 包含 `googleapis` 或 `generativelanguage`，使用 `gemini`。
+- `IMG_BASE_URL` 包含 `apimart`，使用 `apimart`。
+- 只有 Gemini Key 且没有 OpenAI Key，使用 `gemini`。
+- 其他情况默认使用 `openai`。
 
 不要把真实 `.env` 提交到仓库。
+
+## 如何选择 OpenAI / Gemini
+
+| 需求 | 推荐 |
+|---|---|
+| 标准商品主图、白底图、参考图保真 | 优先 OpenAI / ChatGPT |
+| 已有 Google API Key 或想测试 Gemini 风格 | Gemini |
+| 需要对比两套模型的转化图效果 | 同一份 Prompt 分别跑 OpenAI 和 Gemini |
+| 已有 apimart 工作流 | apimart |
+
+建议先让 Skill 输出同一套 Prompt，然后分别执行：
+
+```bash
+python3 scripts/generate_image.py --provider openai --prompt-file prompts/H1-hero.txt
+python3 scripts/generate_image.py --provider gemini --prompt-file prompts/H1-hero.txt
+```
+
+再用实际点击率、转化率或人工评审决定哪套风格更适合商品。
 
 ## 快速开始
 
@@ -242,6 +298,7 @@ Agent 会生成 Prompt 文件，并调用：
 
 ```bash
 python3 scripts/generate_image.py \
+  --provider openai \
   --prompt-file prompt.txt \
   --image data/cup.jpg \
   --output-dir generated-images/cup-social \
@@ -425,6 +482,7 @@ python3 skills/ecom-details-image/scripts/generate_image.py --help
 cd skills/ecom-details-image
 
 python3 scripts/generate_image.py \
+  --provider openai \
   --prompt "clean product hero image, #FFFFFF background, product occupies 38% of frame, at least 45% whitespace, no watermark, no fake logo" \
   --size 1:1 \
   --resolution 2k
@@ -434,6 +492,7 @@ python3 scripts/generate_image.py \
 
 ```bash
 python3 scripts/generate_image.py \
+  --provider gemini \
   --prompt-file prompts/H1-hero.txt \
   --output-dir generated-images/my-product \
   --size 1:1 \
@@ -444,6 +503,7 @@ python3 scripts/generate_image.py \
 
 ```bash
 python3 scripts/generate_image.py \
+  --provider openai \
   --prompt-file prompts/D1-intro.txt \
   --image data/product.jpg \
   --output-dir generated-images/my-product \
@@ -456,6 +516,7 @@ python3 scripts/generate_image.py \
 ```bash
 python3 scripts/generate_image.py \
   --env-file /absolute/path/to/.env \
+  --provider gemini \
   --prompt-file prompts/social-01.txt \
   --size 4:5
 ```
@@ -464,18 +525,19 @@ python3 scripts/generate_image.py \
 
 | 参数 | 说明 |
 |---|---|
+| `--provider` | 图片提供方：`openai`、`gemini`、`apimart` |
 | `--prompt` | 直接传入 Prompt |
 | `--prompt-file` | 从文本文件读取 Prompt |
 | `--image` | 参考产品图 |
 | `--output-dir` | 图片输出目录，默认 `generated-images` |
 | `--size` | 图片比例或尺寸，默认 `1:1` |
-| `--resolution` | 异步模式分辨率，`1k` / `2k` / `4k` |
-| `--quality` | 同步模式质量参数 |
-| `--n` | 同步模式生成数量 |
+| `--resolution` | 目标清晰度，`1k` / `2k` / `4k` |
+| `--quality` | OpenAI/兼容接口质量参数 |
+| `--n` | OpenAI/兼容同步模式生成数量 |
 | `--format` | 输出扩展名，`png` / `jpeg` / `webp` |
-| `--mode` | 强制 `sync` 或 `async` |
-| `--poll-interval` | 异步轮询间隔 |
-| `--timeout` | 异步轮询超时 |
+| `--mode` | 仅 apimart 兼容模式使用，`sync` 或 `async` |
+| `--poll-interval` | apimart 异步轮询间隔 |
+| `--timeout` | apimart 异步轮询超时 |
 
 ## 输出文件建议
 
@@ -523,9 +585,9 @@ generated-images/
 只输出 Prompt，不要调用生图脚本。
 ```
 
-### 提示缺少 `IMG_BASE_URL`
+### 提示缺少 API Key
 
-说明脚本没有找到 `.env` 或环境变量。处理方式：
+说明脚本没有找到对应 provider 的密钥。处理方式：
 
 ```bash
 cd skills/ecom-details-image
@@ -540,13 +602,20 @@ IMG_MODEL=...
 IMG_API_KEY=...
 ```
 
+如果使用 Gemini，也可以写：
+
+```dotenv
+IMG_PROVIDER=gemini
+GEMINI_API_KEY=...
+```
+
 或者运行时指定：
 
 ```bash
 python3 scripts/generate_image.py --env-file /path/to/.env --prompt-file prompt.txt
 ```
 
-### 异步任务一直没有完成
+### apimart 异步任务一直没有完成
 
 可以加大超时时间：
 
@@ -558,6 +627,15 @@ python3 scripts/generate_image.py \
 ```
 
 同时检查 API 服务商后台是否有任务失败、额度不足或模型不可用。
+
+### Gemini 返回中没有图片
+
+检查：
+
+- 是否设置了 `IMG_PROVIDER=gemini` 或命令行 `--provider gemini`。
+- 是否使用了有效的 `GEMINI_API_KEY`。
+- Prompt 是否明确要求“生成图片”，而不是只描述分析任务。
+- 如果用了参考图，图片格式是否为 png/jpg/jpeg/webp/gif。
 
 ### 生成图中文字不准确
 
