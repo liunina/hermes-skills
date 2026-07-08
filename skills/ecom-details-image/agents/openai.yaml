@@ -1,0 +1,6 @@
+interface:
+  display_name: "E-commerce Image"
+  short_description: "Create ecommerce image briefs and prompts."
+  default_prompt: "Use $ecom-details-image to create a conversion-focused ecommerce image brief and generation prompts."
+policy:
+  allow_implicit_invocation: true
