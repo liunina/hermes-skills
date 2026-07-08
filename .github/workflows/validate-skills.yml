@@ -19,6 +19,7 @@ jobs:
           test -d skills/ecom-details-image/references
           test -d skills/ecom-details-image/references/templates
           test -d skills/ecom-details-image/scripts
+          test -f skills/ecom-details-image/README.md
 
       - name: Compile Python scripts
         run: |

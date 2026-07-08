@@ -13,7 +13,7 @@ This repository is organized as a Hermes skill tap. Skills live under `skills/<n
 
 | Skill | Category | Description |
 |---|---|---|
-| `ecom-details-image` | ecommerce | Create conversion-focused ecommerce image briefs, PDP/social/ad prompts, Campaign Style Locks, and optional generated images via an OpenAI-compatible image API. |
+| `ecom-details-image` | ecommerce | Create conversion-focused ecommerce image briefs, PDP/social/ad prompts, Campaign Style Locks, and optional generated images via an OpenAI-compatible image API. See [中文使用指南](./skills/ecom-details-image/README.md). |
 | `wikijs` | devops | Deploy and manage Wiki.js v2 — Docker deployment with PostgreSQL, nginx reverse proxy, locale configuration, GraphQL API CRUD, and programmatic page management. |
 
 ## Installation
