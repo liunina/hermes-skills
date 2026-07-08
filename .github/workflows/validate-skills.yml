@@ -25,6 +25,11 @@ jobs:
         run: |
           python3 -m py_compile skills/wikijs/scripts/wiki-tree.py
           python3 -m py_compile skills/ecom-details-image/scripts/generate_image.py
+          python3 -m py_compile tests/test_ecom_generate_image.py
+
+      - name: Run ecom image script tests
+        run: |
+          python3 tests/test_ecom_generate_image.py
 
       - name: Validate JSON templates
         run: |

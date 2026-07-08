@@ -9,7 +9,8 @@
 设计目标：
   - 不依赖第三方 Python 包。
   - `.env` 配置清晰，优先用 IMG_PROVIDER 指定提供方。
-  - 参考产品图统一用 `--image` 传入。
+  - 参考产品图统一用 `--image` 传入，可重复传入多张。
+  - `--dry-run` 可打印请求摘要，不消耗 API 额度。
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ import base64
 import binascii
 import http.client
 import json
+import math
 import mimetypes
 import os
 import sys
@@ -69,6 +71,9 @@ VALID_RATIOS = (
     "16:9", "9:16", "2:1", "1:2", "21:9", "9:21",
 )
 VALID_RESOLUTIONS = ("1k", "2k", "4k")
+OPENAI_GPT_IMAGE_2_MIN_PIXELS = 655_360
+OPENAI_GPT_IMAGE_2_MAX_PIXELS = 8_294_400
+OPENAI_GPT_IMAGE_2_MAX_EDGE = 3_840
 
 PIXEL_TO_RATIO: dict[str, str] = {
     "1024x1024": "1:1", "2048x2048": "1:1",
@@ -256,13 +261,84 @@ def size_to_ratio(size: str) -> str:
     fail(f"无法将尺寸 '{size}' 转换为比例。请使用 1:1、16:9、2:3 或 1024x1024 这类格式。")
 
 
-def size_to_openai_size(size: str) -> str:
+def _is_gpt_image_2(model: str) -> bool:
+    return model.strip().lower() == "gpt-image-2"
+
+
+def _parse_ratio(ratio: str) -> tuple[int, int]:
+    try:
+        width, height = ratio.split(":", 1)
+        return int(width), int(height)
+    except (ValueError, TypeError):
+        fail(f"无法解析图片比例 '{ratio}'。")
+
+
+def _floor_to_multiple(value: float, multiple: int = 16) -> int:
+    return max(multiple, int(value // multiple) * multiple)
+
+
+def _ratio_to_gpt_image_2_size(ratio: str, resolution: str) -> str:
+    if ratio == "auto":
+        return "auto"
+    ratio_w, ratio_h = _parse_ratio(ratio)
+    if ratio_w <= 0 or ratio_h <= 0:
+        fail(f"图片比例必须大于 0：{ratio}。")
+    if max(ratio_w, ratio_h) / min(ratio_w, ratio_h) > 3:
+        fail("OpenAI gpt-image-2 要求长边与短边比例不超过 3:1。")
+
+    if resolution == "1k":
+        return RATIO_TO_PIXEL.get(ratio) or fail(f"OpenAI 模式不支持比例 '{ratio}'。")
+
+    long_edge = 2048 if resolution == "2k" else OPENAI_GPT_IMAGE_2_MAX_EDGE
+    if ratio_w >= ratio_h:
+        width = long_edge
+        height = _floor_to_multiple(width * ratio_h / ratio_w)
+    else:
+        height = long_edge
+        width = _floor_to_multiple(height * ratio_w / ratio_h)
+
+    if resolution == "4k" and width * height > OPENAI_GPT_IMAGE_2_MAX_PIXELS:
+        scale = math.sqrt(OPENAI_GPT_IMAGE_2_MAX_PIXELS / (width * height))
+        width = _floor_to_multiple(width * scale)
+        height = _floor_to_multiple(height * scale)
+
+    if width * height < OPENAI_GPT_IMAGE_2_MIN_PIXELS:
+        fail(f"计算后的 OpenAI 图片尺寸过小：{width}x{height}。")
+    return f"{width}x{height}"
+
+
+def _validate_gpt_image_2_pixel_size(size: str) -> None:
+    try:
+        width_s, height_s = size.lower().split("x", 1)
+        width, height = int(width_s), int(height_s)
+    except (ValueError, TypeError):
+        fail(f"OpenAI 像素尺寸格式不正确：{size}。应为 1024x1024。")
+    if width > OPENAI_GPT_IMAGE_2_MAX_EDGE or height > OPENAI_GPT_IMAGE_2_MAX_EDGE:
+        fail("OpenAI gpt-image-2 要求任一边不超过 3840px。")
+    if width % 16 or height % 16:
+        fail("OpenAI gpt-image-2 要求宽高都是 16 的倍数。")
+    if max(width, height) / min(width, height) > 3:
+        fail("OpenAI gpt-image-2 要求长边与短边比例不超过 3:1。")
+    pixels = width * height
+    if pixels < OPENAI_GPT_IMAGE_2_MIN_PIXELS or pixels > OPENAI_GPT_IMAGE_2_MAX_PIXELS:
+        fail("OpenAI gpt-image-2 要求总像素在 655360 到 8294400 之间。")
+
+
+def size_to_openai_size(size: str, resolution: str, model: str) -> str:
     if size == "auto":
         return "auto"
+    lower = size.lower()
+    if _is_gpt_image_2(model):
+        if ":" in size:
+            return _ratio_to_gpt_image_2_size(size, resolution)
+        if "x" in lower:
+            _validate_gpt_image_2_pixel_size(lower)
+            return lower
+        fail(f"OpenAI 模式不支持尺寸 '{size}'。请使用 1:1、4:5、1024x1024 或 auto。")
     if ":" in size:
         return RATIO_TO_PIXEL.get(size) or fail(f"OpenAI 模式不支持比例 '{size}'。")
-    if "x" in size.lower():
-        return size.lower()
+    if "x" in lower:
+        return lower
     fail(f"OpenAI 模式不支持尺寸 '{size}'。请使用 1:1、4:5、1024x1024 或 auto。")
 
 
@@ -314,6 +390,10 @@ def encode_gemini_image_block(image_path: str) -> dict[str, str]:
         "mime_type": mime,
         "data": base64.b64encode(data).decode("ascii"),
     }
+
+
+def image_paths(args: argparse.Namespace) -> list[str]:
+    return list(args.images or [])
 
 
 # ── HTTP 工具 ──────────────────────────────────────────────
@@ -432,7 +512,7 @@ def build_openai_payload(args: argparse.Namespace, prompt: str, model: str) -> d
         "model": model,
         "prompt": prompt,
         "n": args.n,
-        "size": size_to_openai_size(args.size),
+        "size": size_to_openai_size(args.size, args.resolution, model),
     }
     if args.quality:
         payload["quality"] = args.quality
@@ -446,25 +526,42 @@ def build_openai_edit_fields(args: argparse.Namespace, prompt: str, model: str) 
         "model": model,
         "prompt": prompt,
         "n": str(args.n),
-        "size": size_to_openai_size(args.size),
+        "size": size_to_openai_size(args.size, args.resolution, model),
         "output_format": normalize_mime_format(args.format),
     }
     if args.quality:
         fields["quality"] = args.quality
+    if args.input_fidelity and not _is_gpt_image_2(model):
+        fields["input_fidelity"] = args.input_fidelity
     return fields
 
 
 def run_openai(base_url: str, api_key: str, args: argparse.Namespace,
                prompt: str, model: str, output_dir: Path) -> list[Path]:
-    if args.image:
+    if image_paths(args):
         endpoint = f"{base_url}/images/edits"
-        filename, data, mime = read_image_bytes(args.image)
         fields = build_openai_edit_fields(args, prompt, model)
+        files = [
+            ("image[]", filename, data, mime)
+            for filename, data, mime in (read_image_bytes(path) for path in image_paths(args))
+        ]
+        if args.dry_run:
+            print_dry_run(
+                "openai",
+                endpoint,
+                {"fields": fields, "files": summarize_files(files)},
+            )
+            return []
+        if args.input_fidelity and _is_gpt_image_2(model):
+            print("[openai] gpt-image-2 默认高保真，已忽略 input_fidelity。", file=sys.stderr)
         print(f"[openai] 提交图片编辑请求到 {endpoint}...", file=sys.stderr)
-        result = http_post_multipart(endpoint, api_key, fields, [("image[]", filename, data, mime)], timeout=180)
+        result = http_post_multipart(endpoint, api_key, fields, files, timeout=180)
     else:
         endpoint = f"{base_url}/images/generations"
         payload = build_openai_payload(args, prompt, model)
+        if args.dry_run:
+            print_dry_run("openai", endpoint, payload)
+            return []
         print(f"[openai] 提交图片生成请求到 {endpoint}...", file=sys.stderr)
         result = http_post_bearer(endpoint, api_key, payload, timeout=180)
     return save_openai_images(result, output_dir, args.format)
@@ -511,12 +608,9 @@ def build_gemini_input(args: argparse.Namespace, prompt: str) -> str | list[dict
         hints.append(f"输出清晰度目标为 {args.resolution.upper()}。")
     prompt_with_hints = prompt if not hints else f"{prompt}\n\n技术要求：{' '.join(hints)}"
 
-    if not args.image:
+    if not image_paths(args):
         return prompt_with_hints
-    return [
-        {"type": "text", "text": prompt_with_hints},
-        encode_gemini_image_block(args.image),
-    ]
+    return [{"type": "text", "text": prompt_with_hints}, *[encode_gemini_image_block(path) for path in image_paths(args)]]
 
 
 def build_gemini_payload(args: argparse.Namespace, prompt: str, model: str) -> dict[str, Any]:
@@ -524,8 +618,13 @@ def build_gemini_payload(args: argparse.Namespace, prompt: str, model: str) -> d
         "model": model,
         "input": build_gemini_input(args, prompt),
     }
-    if args.format:
-        payload["response_format"] = {"type": "image", "mime_type": mime_for_format(args.format)}
+    response_format = {"type": "image", "mime_type": mime_for_format(args.format)}
+    ratio = size_to_ratio(args.size)
+    if ratio != "auto":
+        response_format["aspect_ratio"] = ratio
+    if args.resolution:
+        response_format["image_size"] = args.resolution.upper()
+    payload["response_format"] = response_format
     return payload
 
 
@@ -533,6 +632,9 @@ def run_gemini(base_url: str, api_key: str, args: argparse.Namespace,
                prompt: str, model: str, output_dir: Path) -> list[Path]:
     endpoint = f"{base_url}/interactions"
     payload = build_gemini_payload(args, prompt, model)
+    if args.dry_run:
+        print_dry_run("gemini", endpoint, payload)
+        return []
     print(f"[gemini] 提交图片请求到 {endpoint}...", file=sys.stderr)
     result = http_post_json(endpoint, {"x-goog-api-key": api_key}, payload, timeout=180)
     return save_gemini_images(result, output_dir, args.format)
@@ -602,8 +704,8 @@ def build_apimart_payload(args: argparse.Namespace, prompt: str, model: str) -> 
         "size": ratio,
         "resolution": args.resolution,
     }
-    if args.image:
-        payload["image_urls"] = [encode_image_data_uri(args.image)]
+    if image_paths(args):
+        payload["image_urls"] = [encode_image_data_uri(path) for path in image_paths(args)]
     return payload
 
 
@@ -620,13 +722,19 @@ def run_apimart(base_url: str, api_key: str, args: argparse.Namespace,
         }
         if args.quality:
             payload["quality"] = args.quality
-        if args.image:
-            payload["image_urls"] = [encode_image_data_uri(args.image)]
+        if image_paths(args):
+            payload["image_urls"] = [encode_image_data_uri(path) for path in image_paths(args)]
+        if args.dry_run:
+            print_dry_run("apimart-sync", endpoint, payload)
+            return []
         print(f"[apimart-sync] 提交同步请求到 {endpoint}...", file=sys.stderr)
         result = http_post_bearer(endpoint, api_key, payload, timeout=180)
         return save_openai_images(result, output_dir, args.format)
 
     payload = build_apimart_payload(args, prompt, model)
+    if args.dry_run:
+        print_dry_run("apimart-async", endpoint, payload)
+        return []
     print(f"[apimart-async] 提交异步任务到 {endpoint}...", file=sys.stderr)
     result = http_post_bearer(endpoint, api_key, payload, timeout=30)
 
@@ -723,6 +831,52 @@ def _suffix_from_mime(mime: str, fallback: str) -> str:
     return normalize_mime_format(fallback)
 
 
+def summarize_files(files: list[tuple[str, str, bytes, str]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "field": field_name,
+            "filename": filename,
+            "mime": mime,
+            "bytes": len(data),
+        }
+        for field_name, filename, data, mime in files
+    ]
+
+
+def scrub_payload(value: Any) -> Any:
+    if isinstance(value, dict):
+        cleaned: dict[str, Any] = {}
+        for key, item in value.items():
+            if key.lower() in {"api_key", "apikey", "authorization", "x-goog-api-key"}:
+                cleaned[key] = "<redacted>"
+            else:
+                cleaned[key] = scrub_payload(item)
+        return cleaned
+    if isinstance(value, list):
+        return [scrub_payload(item) for item in value]
+    if isinstance(value, str):
+        if value.startswith("data:image/"):
+            head = value.split(",", 1)[0]
+            return f"{head},<base64 redacted>"
+        if len(value) > 240 and _looks_like_base64(value):
+            return f"<base64 redacted: {len(value)} chars>"
+    return value
+
+
+def _looks_like_base64(value: str) -> bool:
+    sample = value[:120]
+    return all(ch.isalnum() or ch in "+/=" for ch in sample)
+
+
+def print_dry_run(provider: str, endpoint: str, payload: Any) -> None:
+    summary = {
+        "provider": provider,
+        "endpoint": endpoint,
+        "payload": scrub_payload(payload),
+    }
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+
+
 # ── CLI ───────────────────────────────────────────────────
 
 def parse_args() -> argparse.Namespace:
@@ -732,7 +886,11 @@ def parse_args() -> argparse.Namespace:
     prompt_group = parser.add_mutually_exclusive_group(required=True)
     prompt_group.add_argument("--prompt", help="直接传入图片生成 Prompt。")
     prompt_group.add_argument("--prompt-file", help="从文本文件读取图片生成 Prompt。")
-    parser.add_argument("--provider", choices=PROVIDERS, help="图片提供方：openai、gemini、apimart。优先于 IMG_PROVIDER。")
+    parser.add_argument(
+        "--provider",
+        choices=tuple(sorted(PROVIDER_ALIASES)),
+        help="图片提供方：openai、gemini、apimart；也支持 chatgpt、google 等别名。优先于 IMG_PROVIDER。",
+    )
     parser.add_argument("--output-dir", default="generated-images", help="图片输出目录，默认 generated-images。")
     parser.add_argument("--env-file", help="指定 .env 配置文件；不指定时从当前目录向上查找。")
     parser.add_argument("--mode", choices=("sync", "async"), help="仅 apimart 兼容模式使用；建议优先用 --provider。")
@@ -740,10 +898,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--resolution", default="2k", choices=VALID_RESOLUTIONS, help="目标清晰度档位，默认 2k。")
     parser.add_argument("--quality", help="OpenAI/兼容接口质量参数，例如 low、medium、high。")
     parser.add_argument("--n", type=int, default=1, help="OpenAI/兼容同步模式生成数量，默认 1。")
-    parser.add_argument("--image", help="参考产品图片路径，传入以提升产品一致性。")
+    parser.add_argument("--image", dest="images", action="append", help="参考产品图片路径；可重复传入多张。")
+    parser.add_argument("--input-fidelity", choices=("low", "high"), help="OpenAI 参考图保真强度；gpt-image-2 会自动忽略。")
     parser.add_argument("--poll-interval", type=int, default=5, help="apimart 异步模式轮询间隔秒数，默认 5。")
     parser.add_argument("--timeout", type=int, default=180, help="apimart 异步模式轮询超时秒数，默认 180。")
     parser.add_argument("--format", choices=("png", "jpeg", "webp"), default="png", help="图片保存格式，默认 png。")
+    parser.add_argument("--dry-run", action="store_true", help="只打印请求摘要，不调用 API，不要求 API Key。")
     return parser.parse_args()
 
 
@@ -756,7 +916,7 @@ def main() -> None:
     provider = resolve_provider(args)
     base_url = resolve_base_url(provider).rstrip("/")
     model = resolve_model(provider)
-    api_key = resolve_api_key(provider)
+    api_key = "" if args.dry_run else resolve_api_key(provider)
 
     print(f"图片提供方: {provider} | base_url={base_url} | model={model}", file=sys.stderr)
 
@@ -768,9 +928,12 @@ def main() -> None:
     else:
         paths = run_openai(base_url, api_key, args, prompt, model, output_dir)
 
-    print("生成完成：")
-    for path in paths:
-        print(path)
+    if args.dry_run:
+        print("dry-run 完成：未调用 API，未生成图片。")
+    else:
+        print("生成完成：")
+        for path in paths:
+            print(path)
 
 
 if __name__ == "__main__":

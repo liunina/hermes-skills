@@ -23,7 +23,7 @@ metadata:
 
 ## 核心流程
 
-1. 明确产品、目标平台、图片用途、受众、品类、比例、是否需要图中文字、参考图路径和负面约束。
+1. 明确产品、目标平台、图片用途、受众、品类、比例、是否需要图中文字、参考图路径（可多张）和负面约束。
 2. 判断是单图、社媒组图、广告组图，还是完整 PDP/详情页图片包。
 3. 从 `references/templates/` 匹配模板，只读取相关模板。
 4. 对商品图、广告图、PDP 图先做转化驱动力诊断：
@@ -37,7 +37,8 @@ metadata:
    - `openai`：OpenAI / ChatGPT 图片 API。
    - `gemini`：Google Gemini 图片生成。
    - `apimart`：apimart.ai 异步轮询兼容。
-8. 返回生成文件路径、最终 Prompt、关键假设和下一步建议。
+8. 调试 API 参数或不想消耗额度时，先用 `--dry-run` 查看请求摘要。
+9. 返回生成文件路径、最终 Prompt、关键假设和下一步建议。
 
 ## 何时读取参考文件
 
@@ -106,7 +107,7 @@ metadata:
 ## 提供方选择建议
 
 - **OpenAI / ChatGPT**：优先用于标准电商主图、产品一致性要求高、需要 OpenAI 官方图片 API 的场景。
-- **Google Gemini**：优先用于需要 Gemini 图像能力、已有 Google API Key、或想对比 Gemini 出图风格的场景。
+- **Google Gemini**：优先用于需要 Gemini 图像能力、已有 Google API Key、或想对比 Gemini 出图风格的场景；脚本会把比例和清晰度写入 Gemini `response_format`。
 - **apimart**：保留给已有 apimart.ai 工作流或需要其异步轮询接口的用户。
 
 用户未指定时，根据 `.env` 自动判断；更推荐明确设置 `IMG_PROVIDER=openai` 或 `IMG_PROVIDER=gemini`。
@@ -129,10 +130,22 @@ Google Gemini：
 python3 scripts/generate_image.py \
   --provider gemini \
   --prompt-file prompt.txt \
-  --image product.jpg \
+  --image product-front.jpg \
+  --image product-detail.jpg \
   --output-dir generated-images \
   --size 4:5 \
   --resolution 2k
+```
+
+调试请求但不调用 API：
+
+```bash
+python3 scripts/generate_image.py \
+  --provider gemini \
+  --prompt-file prompt.txt \
+  --size 4:5 \
+  --resolution 2k \
+  --dry-run
 ```
 
 使用 `.env.example` 创建本地 `.env`。真实 `.env` 不要提交到仓库。

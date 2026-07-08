@@ -9,7 +9,7 @@
 3. 用数字和色值替代模糊形容词。
 4. 保留平台叠加区、文字区和留白。
 5. 负面约束必须具体。
-6. 有产品参考图时，优先传 `--image`，不要只靠文字描述产品外观。
+6. 有产品参考图时，优先传 `--image`，不要只靠文字描述产品外观；多张参考图可重复传 `--image`。
 7. 除非用户明确要求只输出一种语言，否则每张图都输出“中文提示词”和“英文 Prompt”。
 
 ## 双语 Prompt 输出规范
@@ -56,6 +56,7 @@ Prompt 写法建议：
 - 明确比例、产品占比、背景色、留白和禁止项。
 - 图中文字尽量少，中文必须用 `「」` 包起来。
 - 需要参考产品图时，明确写“keep the exact product shape, color, material, and key visible details from the reference image”。
+- 有多张参考图时，说明每张的作用，例如 “use the first image as the main product shape reference, the second image for material texture, and the third image for packaging details”。
 
 ### Google Gemini
 
@@ -71,6 +72,7 @@ Prompt 写法建议：
 - 对参考图写清楚哪些必须保留，哪些可以变化。
 - 如果比例很重要，直接写 “aspect ratio must be 4:5”。
 - 如果要中文文字，给出短文案并要求 “render the Chinese text exactly as: 「...」”。
+- 直出图时脚本会把比例和清晰度写入 `response_format`，Prompt 里仍应保留一遍比例要求，便于模型理解构图。
 
 ## Campaign Style Lock
 

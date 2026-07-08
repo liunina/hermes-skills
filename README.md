@@ -70,6 +70,7 @@ When adding or changing skills:
 ```bash
 python3 -m py_compile skills/wikijs/scripts/wiki-tree.py
 python3 -m py_compile skills/ecom-details-image/scripts/generate_image.py
+python3 tests/test_ecom_generate_image.py
 find skills/ecom-details-image/references/templates -name '*.json' -print -exec python3 -m json.tool {} \; >/dev/null
 ```
 

@@ -245,6 +245,19 @@ IMG_API_MODE=async
 
 不要把真实 `.env` 提交到仓库。
 
+建议第一次接入时先跑 `--dry-run`：
+
+```bash
+python3 scripts/generate_image.py \
+  --provider gemini \
+  --prompt "生成一张白底商品主图" \
+  --size 4:5 \
+  --resolution 2k \
+  --dry-run
+```
+
+`--dry-run` 会打印脱敏后的请求摘要，不需要 API Key，也不会消耗额度。
+
 ## 如何选择 OpenAI / Gemini
 
 | 需求 | 推荐 |
@@ -253,6 +266,12 @@ IMG_API_MODE=async
 | 已有 Google API Key 或想测试 Gemini 风格 | Gemini |
 | 需要对比两套模型的转化图效果 | 同一份 Prompt 分别跑 OpenAI 和 Gemini |
 | 已有 apimart 工作流 | apimart |
+
+技术差异：
+
+- OpenAI 默认模型 `gpt-image-2` 支持更灵活的像素尺寸。脚本会把 `--size 4:5 --resolution 2k` 映射成合法像素尺寸，例如 `1632x2048`。
+- Gemini 使用 Interactions API。脚本会把比例写入 `response_format.aspect_ratio`，把清晰度写入 `response_format.image_size`。
+- 两者都支持参考图。多张参考图可以重复传 `--image`，例如正面图、细节图、包装图各传一张。
 
 建议先让 Skill 输出同一套 Prompt，然后分别执行：
 
@@ -552,6 +571,31 @@ python3 scripts/generate_image.py \
   --resolution 2k
 ```
 
+多张参考图：
+
+```bash
+python3 scripts/generate_image.py \
+  --provider openai \
+  --prompt-file prompts/H1-hero.txt \
+  --image data/product-front.jpg \
+  --image data/product-detail.jpg \
+  --image data/product-packaging.jpg \
+  --output-dir generated-images/my-product \
+  --size 1:1 \
+  --resolution 2k
+```
+
+只检查请求参数，不调用 API：
+
+```bash
+python3 scripts/generate_image.py \
+  --provider gemini \
+  --prompt-file prompts/social-01.txt \
+  --size 4:5 \
+  --resolution 2k \
+  --dry-run
+```
+
 指定 `.env`：
 
 ```bash
@@ -566,16 +610,18 @@ python3 scripts/generate_image.py \
 
 | 参数 | 说明 |
 |---|---|
-| `--provider` | 图片提供方：`openai`、`gemini`、`apimart` |
+| `--provider` | 图片提供方：`openai`、`gemini`、`apimart`；也支持 `chatgpt`、`google` 等别名 |
 | `--prompt` | 直接传入 Prompt |
 | `--prompt-file` | 从文本文件读取 Prompt |
-| `--image` | 参考产品图 |
+| `--image` | 参考产品图，可重复传入多张 |
 | `--output-dir` | 图片输出目录，默认 `generated-images` |
 | `--size` | 图片比例或尺寸，默认 `1:1` |
 | `--resolution` | 目标清晰度，`1k` / `2k` / `4k` |
 | `--quality` | OpenAI/兼容接口质量参数 |
 | `--n` | OpenAI/兼容同步模式生成数量 |
 | `--format` | 输出扩展名，`png` / `jpeg` / `webp` |
+| `--input-fidelity` | OpenAI 参考图保真强度，`low` / `high`；`gpt-image-2` 会自动忽略 |
+| `--dry-run` | 打印请求摘要，不调用 API，不要求 API Key |
 | `--mode` | 仅 apimart 兼容模式使用，`sync` 或 `async` |
 | `--poll-interval` | apimart 异步轮询间隔 |
 | `--timeout` | apimart 异步轮询超时 |
@@ -724,6 +770,7 @@ python3 scripts/generate_image.py \
 
 ```bash
 python3 -m py_compile skills/ecom-details-image/scripts/generate_image.py
+python3 tests/test_ecom_generate_image.py
 find skills/ecom-details-image/references/templates -name '*.json' -print -exec python3 -m json.tool {} \; >/dev/null
 ```
 

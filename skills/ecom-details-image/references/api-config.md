@@ -31,6 +31,9 @@ IMG_API_KEY=your-openai-api-key
 
 - `IMG_PROVIDER=openai` 会调用 `/images/generations`。
 - 如果传入 `--image`，会调用 `/images/edits`，更适合产品参考图生图。
+- `--image` 可以重复传入多张，OpenAI 会以 `image[]` multipart 字段提交。
+- 默认 `gpt-image-2` 会按 `--size` 和 `--resolution` 生成合法像素尺寸；例如 `4:5 + 2k` 会映射为 `1632x2048`。
+- `--input-fidelity` 只在非 `gpt-image-2` 编辑任务中发送；`gpt-image-2` 默认高保真，脚本会自动忽略该参数。
 - `IMG_API_KEY` 也可用 `OPENAI_API_KEY` 或 `API_KEY`。
 
 ### Google Gemini
@@ -46,7 +49,9 @@ GEMINI_API_KEY=your-gemini-api-key
 
 - Gemini 使用 `https://generativelanguage.googleapis.com/v1beta/interactions`。
 - 鉴权头是 `x-goog-api-key`。
-- 图片从响应里的 `output_image.data` 读取。
+- 脚本会把 `--size` 写入 `response_format.aspect_ratio`，把 `--resolution` 写入 `response_format.image_size`。
+- 参考图以内联 base64 图片块传入；多张参考图可重复使用 `--image`。
+- 图片从响应里的 `output_image.data` 以及嵌套图片块中读取。
 - `GEMINI_API_KEY` 也可用 `GOOGLE_API_KEY`、`GOOGLE_GENAI_API_KEY`、`IMG_API_KEY` 或 `API_KEY`。
 
 ### apimart.ai
@@ -110,6 +115,19 @@ python3 scripts/generate_image.py \
   --output-dir generated-images/openai-product
 ```
 
+### OpenAI 多参考图调试
+
+```bash
+python3 scripts/generate_image.py \
+  --provider openai \
+  --prompt-file prompts/H1-hero.txt \
+  --image data/product-front.jpg \
+  --image data/product-detail.jpg \
+  --size 4:5 \
+  --resolution 2k \
+  --dry-run
+```
+
 ### Gemini 纯文本生图
 
 ```bash
@@ -133,6 +151,19 @@ python3 scripts/generate_image.py \
   --output-dir generated-images/gemini-product
 ```
 
+### Gemini 参数调试
+
+```bash
+python3 scripts/generate_image.py \
+  --provider gemini \
+  --prompt-file prompts/social-01.txt \
+  --size 16:9 \
+  --resolution 2k \
+  --dry-run
+```
+
+`--dry-run` 会打印脱敏后的请求摘要，不要求 API Key，也不会调用接口。
+
 ### 指定配置文件
 
 ```bash
@@ -146,10 +177,10 @@ python3 scripts/generate_image.py \
 
 | 参数 | 说明 |
 |---|---|
-| `--provider` | 图片提供方：`openai`、`gemini`、`apimart` |
+| `--provider` | 图片提供方：`openai`、`gemini`、`apimart`；也支持 `chatgpt`、`google` 等别名 |
 | `--prompt` | 直接传入 Prompt |
 | `--prompt-file` | 从文本文件读取 Prompt |
-| `--image` | 参考产品图 |
+| `--image` | 参考产品图；可重复传入多张 |
 | `--output-dir` | 图片输出目录，默认 `generated-images` |
 | `--env-file` | 指定 `.env` 文件 |
 | `--size` | 比例或尺寸，如 `1:1`、`4:5`、`1024x1024`、`auto` |
@@ -157,14 +188,16 @@ python3 scripts/generate_image.py \
 | `--quality` | OpenAI/兼容接口质量参数 |
 | `--n` | OpenAI/兼容同步模式生成数量 |
 | `--format` | 保存格式：`png`、`jpeg`、`webp` |
+| `--input-fidelity` | OpenAI 参考图保真强度，`low` 或 `high`；`gpt-image-2` 会忽略 |
+| `--dry-run` | 打印请求摘要，不调用 API，不要求 API Key |
 | `--mode` | 仅 apimart 兼容模式使用：`sync` 或 `async` |
 | `--poll-interval` | apimart 异步轮询间隔 |
 | `--timeout` | apimart 异步轮询超时 |
 
 ## 尺寸处理
 
-- OpenAI 模式：如果传入 `1:1`、`4:5` 这类比例，脚本会转换为常用像素尺寸，如 `1024x1024`、`1024x1280`。
-- Gemini 模式：如果传入比例，脚本会把比例作为技术要求追加到 Prompt；Gemini 最终是否严格遵守仍取决于模型能力。
+- OpenAI 模式：默认 `gpt-image-2` 会同时参考 `--size` 和 `--resolution`，并校验宽高不超过 `3840px`、宽高为 `16` 的倍数、长短边不超过 `3:1`、总像素在接口允许范围内。旧模型仍使用保守 1K 映射。
+- Gemini 模式：如果传入比例，脚本会同时把比例写入 Prompt 技术要求和 `response_format.aspect_ratio`；清晰度写入 `response_format.image_size`。
 - apimart 模式：异步接口使用比例格式，脚本会把常见像素尺寸转换为比例。
 
 ## 安全要求
