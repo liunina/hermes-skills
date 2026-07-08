@@ -28,6 +28,7 @@
 - [常见使用示例](#常见使用示例)
 - [完整详情页图片包](#完整详情页图片包)
 - [Campaign Style Lock](#campaign-style-lock)
+- [双语提示词输出](#双语提示词输出)
 - [25 个模板如何选择](#25-个模板如何选择)
 - [直接运行脚本](#直接运行脚本)
 - [输出文件建议](#输出文件建议)
@@ -87,7 +88,8 @@ skills/ecom-details-image/
 - 转化驱动力诊断
 - Campaign Style Lock
 - 图片序列规划
-- 每张图的最终 Prompt
+- 每张图的中文提示词
+- 每张图的英文 Prompt
 - 负面约束
 - 关键假设
 
@@ -277,7 +279,8 @@ python3 scripts/generate_image.py --provider gemini --prompt-file prompts/H1-her
 - 图片类型：白底主图
 - 转化驱动力：痛点驱动 + 信任证明
 - 色板和构图建议
-- 最终英文 Prompt
+- 中文提示词
+- 英文 Prompt
 - 负面约束
 
 ### 基于产品图生成一组社媒图
@@ -419,7 +422,45 @@ product angle stays front 15-degree perspective;
 do not change color palette, mix fonts, use random backgrounds, or add mismatched icon styles.
 ```
 
-Prompt 生成时要把这段原样放进每一张图。
+Prompt 生成时要把这段原样放进每一张图。中文提示词和英文 Prompt 都必须使用同一段 Style Lock，不能让两种语言版本出现视觉漂移。
+
+## 双语提示词输出
+
+默认情况下，每张图都会输出两版提示词：
+
+- **中文提示词**：方便你快速理解、复核和修改，也可以复制到中文生图工具。
+- **英文 Prompt**：默认用于脚本直接出图，更适合 OpenAI / ChatGPT、Gemini 和多数英文提示更稳定的图片模型。
+
+两版提示词表达的是同一张图，不是“中文摘要 + 英文完整版”。中文版本也要包含完整的主体、场景、构图、色彩、文字、平台比例和负面约束。
+
+推荐格式：
+
+```markdown
+### H1 主图
+
+用途：首图，一眼看懂产品和核心卖点。
+
+中文提示词：
+在 #FFFFFF 纯白背景中展示产品，产品占画面约 38%，正面 15 度轻微透视，底部柔和阴影，至少 45% 留白。突出防漏和保温卖点，不添加文字、手、道具、水印或假 logo。
+
+English Prompt:
+Create a clean ecommerce hero image on a #FFFFFF pure white background. The product occupies about 38% of the frame, shown in a front 15-degree perspective with a soft shadow below it and at least 45% whitespace. Emphasize leak-proof and heat-retention benefits. Do not add text, hands, props, watermark, or fake logos.
+
+负面约束：
+不要添加水印、假 logo、额外产品、随机道具、杂乱背景、畸形文字或与参考图不一致的产品颜色。
+```
+
+如果你明确只想要一种语言，可以在需求里写：
+
+```text
+只输出中文提示词。
+```
+
+或：
+
+```text
+只输出英文 Prompt。
+```
 
 ## 25 个模板如何选择
 
@@ -698,3 +739,4 @@ python3 ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/e
 - `.env` 不能入库。
 - 不要提交大批生成图片。
 - 如果更新了脚本参数，要同步更新 `references/api-config.md` 和本 README。
+- 如果更新了 Prompt 输出规则，要同步确认中文提示词和英文 Prompt 都被文档覆盖。

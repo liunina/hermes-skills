@@ -3,7 +3,7 @@ name: ecom-details-image
 description: 创建以转化为目标的电商图片简报、商品主图、详情页 PDP、社媒广告图、UGC、直播间、虚拟试穿、平铺图、细节图、包装图、信息图和 Campaign 组图 Prompt，并可调用 OpenAI/ChatGPT 图片 API、Google Gemini 或 apimart.ai 直接生成图片。适用于产品视觉策略、Campaign Style Lock、多图风格统一、产品参考图生图和跨境/国内电商视觉生产。
 metadata:
   hermes:
-    version: 1.1.0
+    version: 1.1.1
     author: liunina
     tags: [ecommerce, image-generation, product-photography, prompt, ads, pdp, openai, gemini]
     category: ecommerce
@@ -12,7 +12,7 @@ metadata:
 
 # 电商图片生成
 
-使用本 Skill 规划和生成电商视觉素材。默认文档、示例、图中文字建议和解释都以中文为主；最终生图 Prompt 默认使用英文，除非用户明确要求中文 Prompt 或需要中文图中文字。
+使用本 Skill 规划和生成电商视觉素材。默认文档、示例、图中文字建议和解释都以中文为主；每张最终生图 Prompt 默认同时输出 **中文提示词** 和 **英文 Prompt** 两版，除非用户明确要求只保留一种语言。
 
 本 Skill 有两种工作模式：
 
@@ -32,7 +32,7 @@ metadata:
    - 情绪/身份价值
    - 信任证明
 5. 多图任务必须先定义 **Campaign Style Lock**，并把同一段锁定规则原样放入每张 Prompt。
-6. 写 Prompt 时必须给出可执行约束：色值、产品占比、留白、光线、构图、平台安全区、图中文字和负面约束。
+6. 写 Prompt 时必须给出可执行约束：色值、产品占比、留白、光线、构图、平台安全区、图中文字和负面约束；每张图默认输出“中文提示词”和“英文 Prompt”。
 7. 直出图片时，根据配置选择提供方：
    - `openai`：OpenAI / ChatGPT 图片 API。
    - `gemini`：Google Gemini 图片生成。
@@ -145,9 +145,10 @@ python3 scripts/generate_image.py \
 2. 转化驱动力诊断。
 3. Campaign Style Lock。
 4. 图片序列规划。
-5. 每张图的最终 Prompt。
-6. 如果已直出图片，列出生成文件路径。
-7. 如果未直出图片，列出需要补齐的 API 配置。
+5. 每张图的中文提示词。
+6. 每张图的英文 Prompt。
+7. 如果已直出图片，列出生成文件路径。
+8. 如果未直出图片，列出需要补齐的 API 配置。
 
 ## 来源说明
 
