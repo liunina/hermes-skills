@@ -26,7 +26,8 @@ jobs:
           test -f workflow-registry/amazon-competitor-analysis.json
           test -f workflow-registry/components/publish-markdown-to-wiki.json
           test -f workflow-registry/components/send-mattermost-notification.json
-          test -f mcp/n8n-workflow-skills/server.mjs
+          test -f install.mjs
+          test -f mcp/workflow-dinve-skills/server.mjs
 
       - name: Compile Python scripts
         run: |
@@ -54,7 +55,8 @@ jobs:
 
       - name: Run MCP smoke test
         run: |
-          cd mcp/n8n-workflow-skills
+          node --check install.mjs
+          cd mcp/workflow-dinve-skills
           npm ci --omit=dev
           node --check server.mjs
           node --check install.mjs

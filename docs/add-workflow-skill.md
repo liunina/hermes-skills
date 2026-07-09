@@ -95,6 +95,7 @@ Component manifests must not define `skillPath` or `contractPath`. They are impl
 
 ```bash
 python3 scripts/validate_workflow_registry.py
+node --check install.mjs
 cd mcp/workflow-dinve-skills
 npm ci --omit=dev
 node smoke-test.mjs
@@ -105,7 +106,6 @@ node smoke-test.mjs
 Install first:
 
 ```bash
-cd mcp/workflow-dinve-skills
 node install.mjs --client generic
 ```
 

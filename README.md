@@ -36,8 +36,7 @@ Component workflow manifests can still declare `sideEffectMode: "always"` for au
 Install the MCP manager:
 
 ```bash
-cd mcp/workflow-dinve-skills
-node install.mjs --client generic
+node install.mjs --client codex
 ```
 
 For a private repository, fixed n8n webhook URLs can be committed in `workflow-registry/*.json` as `transport.url`. For public or shared installs, use environment variables or local secret files under the installed MCP directory. Do not commit API keys, bot tokens, or credential values.
@@ -100,6 +99,7 @@ python3 -m py_compile skills/wikijs/scripts/wiki-tree.py
 python3 -m py_compile skills/ecom-details-image/scripts/generate_image.py
 python3 tests/test_ecom_generate_image.py
 find skills/ecom-details-image/references/templates -name '*.json' -print -exec python3 -m json.tool {} \; >/dev/null
+node --check install.mjs
 cd mcp/workflow-dinve-skills && npm ci --omit=dev && node smoke-test.mjs
 ```
 

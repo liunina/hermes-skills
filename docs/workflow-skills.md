@@ -13,7 +13,7 @@ Workflow skills additionally register an executable n8n workflow entrypoint:
 
 - `workflow-registry/<skill-id>.json`
 - `mcp/workflow-dinve-skills`
-- runtime secrets stored outside Git
+- fixed workflow config and optional runtime overrides
 
 Only reusable business capabilities become skills under `skills/`.
 Reusable implementation workflows stay under `workflow-registry/components/` as component manifests.
@@ -57,8 +57,7 @@ Components are not exposed by `list_workflow_skills`; business skills decide whe
 ## Install
 
 ```bash
-cd mcp/workflow-dinve-skills
-node install.mjs --client generic
+node install.mjs --client codex
 ```
 
 For a specific client:
@@ -67,6 +66,8 @@ For a specific client:
 node install.mjs --client codex
 node install.mjs --client claude
 node install.mjs --client cursor
+node install.mjs --client generic
+node install.mjs --client all
 ```
 
 ## Configure Secrets
