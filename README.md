@@ -39,6 +39,8 @@ Install the MCP manager:
 node install.mjs --client codex
 ```
 
+Usage guide: [docs/usage.md](./docs/usage.md)
+
 For a private repository, fixed n8n webhook URLs can be committed in `workflow-registry/*.json` as `transport.url`. For public or shared installs, use environment variables or local secret files under the installed MCP directory. Do not commit API keys, bot tokens, or credential values.
 
 ## Installation
