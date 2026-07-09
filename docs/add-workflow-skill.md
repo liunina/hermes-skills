@@ -2,6 +2,8 @@
 
 Use this process when a published n8n workflow should become an agent-callable skill.
 
+For the full lifecycle, update rules, and release checklist, see [workflow-skill-lifecycle.md](./workflow-skill-lifecycle.md).
+
 ## 1. Decide the Skill Boundary
 
 Create a workflow skill only for a reusable capability.

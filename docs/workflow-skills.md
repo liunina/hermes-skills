@@ -3,6 +3,7 @@
 Workflow skills add an executable layer to this skill tap.
 
 For install and call examples, see [usage.md](./usage.md).
+For future additions and update rules, see [workflow-skill-lifecycle.md](./workflow-skill-lifecycle.md).
 
 Regular skills provide static agent knowledge:
 

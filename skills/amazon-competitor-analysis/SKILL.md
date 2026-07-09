@@ -13,6 +13,9 @@ metadata:
 
 Use the `workflow-dinve-skills` MCP manager instead of recreating competitor analysis logic in the agent.
 
+For the full input/output contract, read `references/mcp-contract.md`.
+For trigger regression examples, read `../../docs/evals/amazon-competitor-analysis.md`.
+
 ## Invocation
 
 1. Call `get_workflow_skill` with `skillId: "amazon-competitor-analysis"` before the first run in a session.
