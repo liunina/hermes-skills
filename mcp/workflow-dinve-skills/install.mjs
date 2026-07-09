@@ -23,8 +23,9 @@ Options:
   --help                Show this help.
 
 Secrets:
-  Put webhook URLs in ~/.mcp/workflow-dinve-skills/secrets/*.webhook-url.txt
-  or provide the environment variable named by each registry manifest.
+  In private repo mode, put fixed webhook URLs directly in manifest transport.url.
+  Otherwise use ~/.mcp/workflow-dinve-skills/secrets/*.webhook-url.txt
+  or the environment variable named by each registry manifest.
 `);
 }
 
@@ -212,11 +213,10 @@ async function main() {
 
   console.log(`Installed ${SERVER_NAME} MCP server.`);
   console.log(`Install dir: ${installDir}`);
-  console.log('Configure secrets under the install-dir secrets/ folder or use manifest environment variables.');
+  console.log('Webhook URLs can come from manifest transport.url, environment variables, or the install-dir secrets/ folder.');
 }
 
 main().catch((error) => {
   console.error(error.message);
   process.exit(1);
 });
-

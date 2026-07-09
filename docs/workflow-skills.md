@@ -71,26 +71,41 @@ node install.mjs --client cursor
 
 ## Configure Secrets
 
-Each manifest defines either an environment variable or a local secret file.
+Each manifest can define a fixed URL, an environment variable, or a local secret file. The MCP resolves them in this order:
+
+1. `transport.url`
+2. `transport.urlEnv`
+3. `transport.secretFile`
 
 Example:
 
 ```json
 {
   "transport": {
+    "url": "",
     "urlEnv": "AMAZON_COMPETITOR_WEBHOOK_URL",
     "secretFile": "secrets/amazon-competitor-analysis.webhook-url.txt"
   }
 }
 ```
 
-Runtime options:
+Private repo mode:
+
+```json
+{
+  "transport": {
+    "url": "https://your-n8n.example/webhook/..."
+  }
+}
+```
+
+Runtime environment option:
 
 ```bash
 export AMAZON_COMPETITOR_WEBHOOK_URL="<private webhook url>"
 ```
 
-or:
+Local file option:
 
 ```bash
 printf '%s\n' '<private webhook url>' \
@@ -98,4 +113,4 @@ printf '%s\n' '<private webhook url>' \
 chmod 600 ~/.mcp/workflow-dinve-skills/secrets/amazon-competitor-analysis.webhook-url.txt
 ```
 
-Never commit real webhook URLs.
+Do not put API keys, bot tokens, or n8n credential values in the manifest.

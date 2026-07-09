@@ -12,30 +12,35 @@
     "publish-markdown-to-wiki",
     "send-mattermost-notification"
   ],
+  "n8n": {
+    "serverUrl": "https://workflow.dinve.com",
+    "instanceName": "workflow.dinve.com"
+  },
   "workflows": [
     {
       "role": "primary",
       "name": "[工具] Analyze Amazon competitors",
-      "id": "configure-in-private-n8n"
+      "id": "gDbZrWGu5eaE8KAJ"
     },
     {
       "role": "wrapper",
       "name": "[MCP入口] Amazon competitor analysis webhook",
-      "id": "configure-in-private-n8n"
+      "id": "xF4kGuDGCOOxyiNy"
     },
     {
       "role": "component",
       "name": "[组件] Publish Markdown to Wiki.js",
-      "id": "configure-in-private-n8n"
+      "id": "qhUfplbPjLJKhZYA"
     },
     {
       "role": "component",
       "name": "[组件] Send Mattermost notification",
-      "id": "configure-in-private-n8n"
+      "id": "tojzDW1snwmRaB7Q"
     }
   ],
   "transport": {
     "type": "webhook",
+    "url": "https://workflow.dinve.com/webhook/mcp-amazon-competitor-analysis-3aa6d15c5de129f8318f352ca376d18b",
     "urlEnv": "AMAZON_COMPETITOR_WEBHOOK_URL",
     "secretFile": "secrets/amazon-competitor-analysis.webhook-url.txt",
     "timeoutMs": 600000

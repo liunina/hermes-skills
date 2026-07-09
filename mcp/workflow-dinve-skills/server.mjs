@@ -47,6 +47,7 @@ function publicManifest(skill) {
     ...rest,
     transport: {
       type: transport?.type || '',
+      hasCommittedUrl: Boolean(transport?.url),
       urlEnv: transport?.urlEnv || '',
       timeoutMs: transport?.timeoutMs || 0,
       configured: Boolean(resolveWebhookUrl(skill, false)),
@@ -66,6 +67,8 @@ function getSkillOrThrow(skillId) {
 
 function resolveWebhookUrl(skill, throwOnMissing = true) {
   const transport = skill.transport || {};
+  if (transport.url) return String(transport.url).trim();
+
   const envValue = transport.urlEnv ? process.env[transport.urlEnv] : '';
   if (envValue) return envValue.trim();
 

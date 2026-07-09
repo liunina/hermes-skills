@@ -9,12 +9,13 @@
 
 ## Transport
 
-The skill is executed through a private n8n webhook wrapper. The webhook URL must be provided at install or runtime through:
+The skill is executed through a private n8n webhook wrapper. The webhook URL can be provided through:
 
+- Private repo fixed config: `transport.url` in `workflow-registry/amazon-competitor-analysis.json`
 - Environment variable: `AMAZON_COMPETITOR_WEBHOOK_URL`
 - Local secret file: `secrets/amazon-competitor-analysis.webhook-url.txt`
 
-Do not commit the real webhook URL.
+Do not commit API keys, bot tokens, or n8n credential values.
 
 ## Input Fields
 
@@ -91,4 +92,3 @@ Expected result:
 ```
 
 This verifies the MCP guard without calling the webhook.
-

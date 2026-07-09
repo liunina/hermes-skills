@@ -21,7 +21,6 @@ SECRET_PATTERNS = [
     re.compile(r"eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}"),
     re.compile(r"Bearer\s+[A-Za-z0-9._~+/=-]{20,}"),
     re.compile(r"sk-[A-Za-z0-9]{20,}"),
-    re.compile(r"https?://[^\s\"'<>]+/webhook/[A-Za-z0-9._~/-]{12,}"),
 ]
 
 SKIP_DIRS = {".git", "__pycache__", "node_modules", "generated-images"}
@@ -60,6 +59,46 @@ def require_dict(data: dict[str, Any], path: Path, field: str) -> dict[str, Any]
     return value
 
 
+def validate_n8n_metadata(data: dict[str, Any], path: Path) -> None:
+    n8n = data.get("n8n")
+    if n8n is None:
+        return
+    if not isinstance(n8n, dict):
+        raise ValidationError(f"{path}: n8n must be an object")
+    server_url = n8n.get("serverUrl")
+    if not isinstance(server_url, str) or not server_url.strip():
+        raise ValidationError(f"{path}: n8n.serverUrl must be a non-empty string")
+    for field in ("instanceName", "projectId"):
+        if field in n8n and not isinstance(n8n[field], str):
+            raise ValidationError(f"{path}: n8n.{field} must be a string")
+
+
+def validate_transport(data: dict[str, Any], path: Path, required: bool) -> None:
+    transport = data.get("transport")
+    if transport is None:
+        if required:
+            raise ValidationError(f"{path}: business-skill manifests must define transport")
+        return
+    if not isinstance(transport, dict):
+        raise ValidationError(f"{path}: transport must be an object")
+    if transport.get("type") != "webhook":
+        raise ValidationError(f"{path}: only transport.type=webhook is supported")
+    url = transport.get("url")
+    if url is not None and (not isinstance(url, str) or not url.strip()):
+        raise ValidationError(f"{path}: transport.url must be a non-empty string when present")
+    url_env = transport.get("urlEnv")
+    if url_env is not None and (not isinstance(url_env, str) or not re.fullmatch(r"[A-Z][A-Z0-9_]+", url_env)):
+        raise ValidationError(f"{path}: transport.urlEnv must be an environment variable name")
+    secret_file = transport.get("secretFile")
+    if secret_file is not None and (not isinstance(secret_file, str) or not re.fullmatch(r"secrets/[a-z0-9-]+\.webhook-url\.txt", secret_file)):
+        raise ValidationError(f"{path}: transport.secretFile must be secrets/<id>.webhook-url.txt")
+    if not any([url, url_env, secret_file]):
+        raise ValidationError(f"{path}: transport must define at least one of url, urlEnv, or secretFile")
+    timeout_ms = transport.get("timeoutMs")
+    if not isinstance(timeout_ms, int) or timeout_ms < 1000:
+        raise ValidationError(f"{path}: transport.timeoutMs must be an integer >= 1000")
+
+
 def validate_manifest(path: Path, expected_manifest_type: str, component_ids: set[str]) -> None:
     data = load_json(path)
     if not isinstance(data, dict):
@@ -84,6 +123,8 @@ def validate_manifest(path: Path, expected_manifest_type: str, component_ids: se
     tags = require_list(data, path, "tags")
     if not all(isinstance(tag, str) and tag for tag in tags):
         raise ValidationError(f"{path}: `tags` must contain non-empty strings")
+
+    validate_n8n_metadata(data, path)
 
     if manifest_type == "business-skill":
         skill_path = require_string(data, path, "skillPath")
@@ -123,18 +164,7 @@ def validate_manifest(path: Path, expected_manifest_type: str, component_ids: se
             if not isinstance(workflow.get(field), str) or not workflow[field]:
                 raise ValidationError(f"{path}: workflows[{index}].{field} must be a non-empty string")
 
-    transport = require_dict(data, path, "transport")
-    if transport.get("type") != "webhook":
-        raise ValidationError(f"{path}: only transport.type=webhook is supported")
-    url_env = transport.get("urlEnv")
-    if not isinstance(url_env, str) or not re.fullmatch(r"[A-Z][A-Z0-9_]+", url_env):
-        raise ValidationError(f"{path}: transport.urlEnv must be an environment variable name")
-    secret_file = transport.get("secretFile")
-    if not isinstance(secret_file, str) or not re.fullmatch(r"secrets/[a-z0-9-]+\.webhook-url\.txt", secret_file):
-        raise ValidationError(f"{path}: transport.secretFile must be secrets/<id>.webhook-url.txt")
-    timeout_ms = transport.get("timeoutMs")
-    if not isinstance(timeout_ms, int) or timeout_ms < 1000:
-        raise ValidationError(f"{path}: transport.timeoutMs must be an integer >= 1000")
+    validate_transport(data, path, required=manifest_type == "business-skill")
 
     require_dict(data, path, "defaults")
     side_effect_mode = data.get("sideEffectMode", "field")

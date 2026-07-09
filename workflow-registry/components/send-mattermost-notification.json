@@ -6,24 +6,17 @@
   "status": "active",
   "category": "notification",
   "tags": ["mattermost", "notification", "component", "n8n"],
+  "n8n": {
+    "serverUrl": "https://workflow.dinve.com",
+    "instanceName": "workflow.dinve.com"
+  },
   "workflows": [
     {
       "role": "primary",
       "name": "[组件] Send Mattermost notification",
-      "id": "configure-in-private-n8n"
-    },
-    {
-      "role": "wrapper",
-      "name": "[MCP入口] Send Mattermost notification webhook",
-      "id": "configure-in-private-n8n"
+      "id": "tojzDW1snwmRaB7Q"
     }
   ],
-  "transport": {
-    "type": "webhook",
-    "urlEnv": "SEND_MATTERMOST_NOTIFICATION_WEBHOOK_URL",
-    "secretFile": "secrets/send-mattermost-notification.webhook-url.txt",
-    "timeoutMs": 180000
-  },
   "defaults": {
     "channelId": "",
     "baseUrl": "",

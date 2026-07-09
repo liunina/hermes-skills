@@ -13,7 +13,6 @@
     "category",
     "tags",
     "workflows",
-    "transport",
     "defaults",
     "sideEffectFields",
     "outputFields"
@@ -64,6 +63,23 @@
         "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$"
       }
     },
+    "n8n": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["serverUrl"],
+      "properties": {
+        "serverUrl": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instanceName": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": "string"
+        }
+      }
+    },
     "workflows": {
       "type": "array",
       "minItems": 1,
@@ -91,11 +107,15 @@
     "transport": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type", "urlEnv", "secretFile", "timeoutMs"],
+      "required": ["type", "timeoutMs"],
       "properties": {
         "type": {
           "type": "string",
           "enum": ["webhook"]
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1
         },
         "urlEnv": {
           "type": "string",

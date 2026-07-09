@@ -9,6 +9,10 @@
   "skillPath": "skills/your-workflow-skill-id/SKILL.md",
   "contractPath": "skills/your-workflow-skill-id/references/mcp-contract.md",
   "componentDependencies": [],
+  "n8n": {
+    "serverUrl": "https://your-n8n.example",
+    "instanceName": "your-n8n"
+  },
   "workflows": [
     {
       "role": "primary",
@@ -23,6 +27,7 @@
   ],
   "transport": {
     "type": "webhook",
+    "url": "https://your-n8n.example/webhook/your-webhook-path",
     "urlEnv": "YOUR_WORKFLOW_WEBHOOK_URL",
     "secretFile": "secrets/your-workflow-skill-id.webhook-url.txt",
     "timeoutMs": 600000

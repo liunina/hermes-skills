@@ -71,6 +71,7 @@ Required decisions:
 - `status`: use `draft` until tested.
 - `workflows`: primary workflow, wrapper workflow, component workflows.
 - `componentDependencies`: component manifest ids under `workflow-registry/components/`.
+- `transport.url`: fixed webhook URL for private repo mode.
 - `transport.urlEnv`: environment variable for webhook URL.
 - `transport.secretFile`: local secret file name under the installed MCP directory.
 - `defaults`: safe default input.
@@ -99,7 +100,7 @@ npm ci --omit=dev
 node smoke-test.mjs
 ```
 
-## 6. Runtime Secret
+## 6. Runtime URL
 
 Install first:
 
@@ -108,13 +109,25 @@ cd mcp/workflow-dinve-skills
 node install.mjs --client generic
 ```
 
-Then add the webhook URL outside Git:
+For private repo mode, put the fixed webhook URL directly in the manifest:
+
+```json
+{
+  "transport": {
+    "url": "https://your-n8n.example/webhook/..."
+  }
+}
+```
+
+For public or shared installs, keep using a local file:
 
 ```bash
 printf '%s\n' '<private webhook url>' \
   > ~/.mcp/workflow-dinve-skills/secrets/<skill-id>.webhook-url.txt
 chmod 600 ~/.mcp/workflow-dinve-skills/secrets/<skill-id>.webhook-url.txt
 ```
+
+Never put API keys, bot tokens, or n8n credential values in the manifest.
 
 ## 7. Test Side Effects
 

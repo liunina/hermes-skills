@@ -64,5 +64,4 @@ Return business-useful fields first:
 4. Mattermost notification status when requested.
 5. Operational warnings such as AI timeout, Decodo failure, Wiki publish failure, or Mattermost credential failure.
 
-Never print API keys, bot tokens, credential values, or webhook URLs.
-
+Never print API keys, bot tokens, or credential values.
