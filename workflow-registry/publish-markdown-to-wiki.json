@@ -1,0 +1,48 @@
+{
+  "id": "publish-markdown-to-wiki",
+  "name": "Publish Markdown to Wiki.js",
+  "description": "Publish or update a Markdown page in Wiki.js through a reusable n8n component workflow. Use as a component skill when an agent needs to create or update internal documentation after a report is generated.",
+  "status": "active",
+  "category": "publishing",
+  "tags": ["wiki", "wikijs", "markdown", "publish", "component", "n8n"],
+  "skillPath": "skills/publish-markdown-to-wiki/SKILL.md",
+  "contractPath": "skills/publish-markdown-to-wiki/references/mcp-contract.md",
+  "workflows": [
+    {
+      "role": "primary",
+      "name": "[组件] Publish Markdown to Wiki.js",
+      "id": "configure-in-private-n8n"
+    },
+    {
+      "role": "wrapper",
+      "name": "[MCP入口] Publish Markdown to Wiki.js webhook",
+      "id": "configure-in-private-n8n"
+    }
+  ],
+  "transport": {
+    "type": "webhook",
+    "urlEnv": "PUBLISH_MARKDOWN_TO_WIKI_WEBHOOK_URL",
+    "secretFile": "secrets/publish-markdown-to-wiki.webhook-url.txt",
+    "timeoutMs": 300000
+  },
+  "defaults": {
+    "locale": "zh-CN",
+    "mode": "upsert",
+    "tags": []
+  },
+  "sideEffectMode": "always",
+  "sideEffectFields": ["mode"],
+  "safeSmokeInput": {},
+  "expectedSmokeError": "side_effect_confirmation_required",
+  "outputFields": [
+    "ok",
+    "httpStatus",
+    "wikiLink",
+    "pageId",
+    "path",
+    "title",
+    "status",
+    "message"
+  ]
+}
+

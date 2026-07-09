@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/liunina/hermes-skills/workflow-registry/schema.json",
+  "title": "Hermes Workflow Skill Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "description",
+    "status",
+    "category",
+    "tags",
+    "skillPath",
+    "workflows",
+    "transport",
+    "defaults",
+    "sideEffectFields",
+    "outputFields"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "draft", "deprecated"]
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "skillPath": {
+      "type": "string",
+      "pattern": "^skills/.+/SKILL\\.md$"
+    },
+    "contractPath": {
+      "type": "string"
+    },
+    "workflows": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "name", "id"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["primary", "component", "wrapper", "reference"]
+          },
+          "name": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "urlEnv", "secretFile", "timeoutMs"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["webhook"]
+        },
+        "urlEnv": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]+$"
+        },
+        "secretFile": {
+          "type": "string",
+          "pattern": "^secrets/[a-z0-9-]+\\.webhook-url\\.txt$"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1000
+        }
+      }
+    },
+    "defaults": {
+      "type": "object"
+    },
+    "sideEffectMode": {
+      "type": "string",
+      "enum": ["field", "always"]
+    },
+    "sideEffectFields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "safeSmokeInput": {
+      "type": "object"
+    },
+    "expectedSmokeError": {
+      "type": "string"
+    },
+    "outputFields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

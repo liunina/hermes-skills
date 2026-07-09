@@ -1,0 +1,45 @@
+{
+  "id": "send-mattermost-notification",
+  "name": "Send Mattermost Notification",
+  "description": "Send a Mattermost notification through a reusable n8n component workflow. Use as a component skill when an agent needs to notify a channel after a report, workflow, or operational event.",
+  "status": "active",
+  "category": "notification",
+  "tags": ["mattermost", "notification", "component", "n8n"],
+  "skillPath": "skills/send-mattermost-notification/SKILL.md",
+  "contractPath": "skills/send-mattermost-notification/references/mcp-contract.md",
+  "workflows": [
+    {
+      "role": "primary",
+      "name": "[组件] Send Mattermost notification",
+      "id": "configure-in-private-n8n"
+    },
+    {
+      "role": "wrapper",
+      "name": "[MCP入口] Send Mattermost notification webhook",
+      "id": "configure-in-private-n8n"
+    }
+  ],
+  "transport": {
+    "type": "webhook",
+    "urlEnv": "SEND_MATTERMOST_NOTIFICATION_WEBHOOK_URL",
+    "secretFile": "secrets/send-mattermost-notification.webhook-url.txt",
+    "timeoutMs": 180000
+  },
+  "defaults": {
+    "channelId": "",
+    "baseUrl": "",
+    "props": {}
+  },
+  "sideEffectMode": "always",
+  "sideEffectFields": ["message", "channelId"],
+  "safeSmokeInput": {},
+  "expectedSmokeError": "side_effect_confirmation_required",
+  "outputFields": [
+    "ok",
+    "httpStatus",
+    "postId",
+    "channelId",
+    "status",
+    "message"
+  ]
+}

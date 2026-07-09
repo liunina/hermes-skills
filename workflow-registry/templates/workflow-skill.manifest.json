@@ -1,0 +1,34 @@
+{
+  "id": "your-workflow-skill-id",
+  "name": "Human Readable Skill Name",
+  "description": "What this workflow skill does and when an agent should use it.",
+  "status": "draft",
+  "category": "general",
+  "tags": ["tool"],
+  "skillPath": "skills/your-workflow-skill-id/SKILL.md",
+  "contractPath": "skills/your-workflow-skill-id/references/mcp-contract.md",
+  "workflows": [
+    {
+      "role": "primary",
+      "name": "[工具] Your published workflow",
+      "id": "configure-in-private-n8n"
+    },
+    {
+      "role": "wrapper",
+      "name": "[MCP入口] Your webhook wrapper",
+      "id": "configure-in-private-n8n"
+    }
+  ],
+  "transport": {
+    "type": "webhook",
+    "urlEnv": "YOUR_WORKFLOW_WEBHOOK_URL",
+    "secretFile": "secrets/your-workflow-skill-id.webhook-url.txt",
+    "timeoutMs": 600000
+  },
+  "defaults": {},
+  "sideEffectMode": "field",
+  "sideEffectFields": [],
+  "safeSmokeInput": {},
+  "expectedSmokeError": "validation_error",
+  "outputFields": ["ok", "httpStatus"]
+}

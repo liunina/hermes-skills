@@ -15,6 +15,32 @@ This repository is organized as a Hermes skill tap. Skills live under `skills/<n
 |---|---|---|
 | `ecom-details-image` | ecommerce | 创建以转化为目标的电商图片简报、PDP/社媒/广告中英文双语 Prompt、Campaign Style Lock，并可通过 OpenAI/ChatGPT、Google Gemini 或 apimart.ai 直接生图。详见 [中文使用指南](./skills/ecom-details-image/README.md)。 |
 | `wikijs` | devops | Deploy and manage Wiki.js v2 — Docker deployment with PostgreSQL, nginx reverse proxy, locale configuration, GraphQL API CRUD, and programmatic page management. |
+| `amazon-competitor-analysis` | ecommerce | n8n-backed workflow skill for Amazon competitor analysis. Designed to run through the `n8n-workflow-skills` MCP manager. |
+| `publish-markdown-to-wiki` | publishing | n8n-backed component workflow skill for publishing or updating Markdown pages in Wiki.js. Always requires side-effect confirmation. |
+| `send-mattermost-notification` | notification | n8n-backed component workflow skill for sending Mattermost messages. Always requires side-effect confirmation. |
+
+## Workflow Skills
+
+Hermes skills are static capabilities: instructions, references, templates, and scripts.
+
+Workflow skills add an execution layer. A workflow skill maps a reusable business capability to one or more published n8n workflows through `workflow-registry/*.json` and the `n8n-workflow-skills` MCP server.
+
+Core MCP tools:
+
+- `list_workflow_skills` — discover registered workflow skills.
+- `get_workflow_skill` — read the manifest and bundled skill instructions.
+- `run_workflow_skill` — execute the registered n8n workflow entrypoint.
+
+Component workflow skills such as `publish-markdown-to-wiki` and `send-mattermost-notification` use `sideEffectMode: "always"` because simply running them writes to an external system.
+
+Install the MCP manager:
+
+```bash
+cd mcp/n8n-workflow-skills
+node install.mjs --client generic
+```
+
+Real webhook URLs must be provided through environment variables or local secret files under the installed MCP directory. Do not commit webhook URLs, API keys, or bot tokens.
 
 ## Installation
 
@@ -65,13 +91,16 @@ When adding or changing skills:
 2. Keep the main procedure in `SKILL.md`.
 3. Put long examples, API references, and troubleshooting details in `references/`.
 4. Put reusable helper scripts in `scripts/`.
-5. Run local validation before pushing:
+5. Put executable workflow manifests in `workflow-registry/`.
+6. Run local validation before pushing:
 
 ```bash
+python3 scripts/validate_workflow_registry.py
 python3 -m py_compile skills/wikijs/scripts/wiki-tree.py
 python3 -m py_compile skills/ecom-details-image/scripts/generate_image.py
 python3 tests/test_ecom_generate_image.py
 find skills/ecom-details-image/references/templates -name '*.json' -print -exec python3 -m json.tool {} \; >/dev/null
+cd mcp/n8n-workflow-skills && npm ci --omit=dev && node smoke-test.mjs
 ```
 
 ## License

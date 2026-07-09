@@ -1,0 +1,78 @@
+{
+  "id": "amazon-competitor-analysis",
+  "name": "Amazon Competitor Analysis",
+  "description": "Analyze Amazon competitors from ASINs, product links, or messy pasted text. Generate a competitor report and optionally publish to Wiki.js or notify Mattermost when explicitly confirmed.",
+  "status": "active",
+  "category": "amazon",
+  "tags": ["amazon", "competitor", "listing", "wiki", "mattermost"],
+  "skillPath": "skills/amazon-competitor-analysis/SKILL.md",
+  "contractPath": "skills/amazon-competitor-analysis/references/mcp-contract.md",
+  "workflows": [
+    {
+      "role": "primary",
+      "name": "[工具] Analyze Amazon competitors",
+      "id": "configure-in-private-n8n"
+    },
+    {
+      "role": "wrapper",
+      "name": "[MCP入口] Amazon competitor analysis webhook",
+      "id": "configure-in-private-n8n"
+    },
+    {
+      "role": "component",
+      "name": "[组件] Publish Markdown to Wiki.js",
+      "id": "configure-in-private-n8n"
+    },
+    {
+      "role": "component",
+      "name": "[组件] Send Mattermost notification",
+      "id": "configure-in-private-n8n"
+    }
+  ],
+  "transport": {
+    "type": "webhook",
+    "urlEnv": "AMAZON_COMPETITOR_WEBHOOK_URL",
+    "secretFile": "secrets/amazon-competitor-analysis.webhook-url.txt",
+    "timeoutMs": 600000
+  },
+  "defaults": {
+    "competitorUrls": [],
+    "competitorText": "",
+    "ownProductUrl": "",
+    "ownAsin": "",
+    "productIdea": "",
+    "targetAudience": "",
+    "marketplace": "amazon.co.jp",
+    "locale": "zh-CN",
+    "focus": "价格带、卖点、图片/A+页面、关键词、切入策略",
+    "maxCompetitors": 1,
+    "dryRun": true,
+    "publishWiki": false,
+    "notifyMattermost": false,
+    "wikiPath": "",
+    "wikiPathPrefix": "",
+    "mattermostChannelId": "",
+    "mattermostBaseUrl": ""
+  },
+  "sideEffectMode": "field",
+  "sideEffectFields": ["publishWiki", "notifyMattermost"],
+  "safeSmokeInput": {
+    "publishWiki": true
+  },
+  "expectedSmokeError": "side_effect_confirmation_required",
+  "outputFields": [
+    "ok",
+    "httpStatus",
+    "title",
+    "report",
+    "output",
+    "wikiLink",
+    "competitorCount",
+    "failedCount",
+    "publishStatus",
+    "notificationStatus",
+    "competitorMatrix",
+    "wikiPublish",
+    "mattermostNotify"
+  ]
+}

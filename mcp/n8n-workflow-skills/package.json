@@ -1,0 +1,17 @@
+{
+  "name": "n8n-workflow-skills-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "n8n-workflow-skills-mcp": "./server.mjs"
+  },
+  "scripts": {
+    "smoke": "node smoke-test.mjs",
+    "install:mcp": "node install.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0"
+  }
+}
+

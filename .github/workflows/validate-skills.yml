@@ -20,9 +20,21 @@ jobs:
           test -d skills/ecom-details-image/references/templates
           test -d skills/ecom-details-image/scripts
           test -f skills/ecom-details-image/README.md
+          test -f skills/amazon-competitor-analysis/SKILL.md
+          test -f skills/amazon-competitor-analysis/references/mcp-contract.md
+          test -f skills/publish-markdown-to-wiki/SKILL.md
+          test -f skills/publish-markdown-to-wiki/references/mcp-contract.md
+          test -f skills/send-mattermost-notification/SKILL.md
+          test -f skills/send-mattermost-notification/references/mcp-contract.md
+          test -f workflow-registry/schema.json
+          test -f workflow-registry/amazon-competitor-analysis.json
+          test -f workflow-registry/publish-markdown-to-wiki.json
+          test -f workflow-registry/send-mattermost-notification.json
+          test -f mcp/n8n-workflow-skills/server.mjs
 
       - name: Compile Python scripts
         run: |
+          python3 -m py_compile scripts/validate_workflow_registry.py
           python3 -m py_compile skills/wikijs/scripts/wiki-tree.py
           python3 -m py_compile skills/ecom-details-image/scripts/generate_image.py
           python3 -m py_compile tests/test_ecom_generate_image.py
@@ -34,3 +46,21 @@ jobs:
       - name: Validate JSON templates
         run: |
           find skills/ecom-details-image/references/templates -name '*.json' -print -exec python3 -m json.tool {} \; >/dev/null
+
+      - name: Validate workflow registry
+        run: |
+          python3 scripts/validate_workflow_registry.py
+
+      - name: Validate MCP server
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run MCP smoke test
+        run: |
+          cd mcp/n8n-workflow-skills
+          npm ci --omit=dev
+          node --check server.mjs
+          node --check install.mjs
+          node --check smoke-test.mjs
+          node smoke-test.mjs
