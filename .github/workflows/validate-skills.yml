@@ -22,14 +22,10 @@ jobs:
           test -f skills/ecom-details-image/README.md
           test -f skills/amazon-competitor-analysis/SKILL.md
           test -f skills/amazon-competitor-analysis/references/mcp-contract.md
-          test -f skills/publish-markdown-to-wiki/SKILL.md
-          test -f skills/publish-markdown-to-wiki/references/mcp-contract.md
-          test -f skills/send-mattermost-notification/SKILL.md
-          test -f skills/send-mattermost-notification/references/mcp-contract.md
           test -f workflow-registry/schema.json
           test -f workflow-registry/amazon-competitor-analysis.json
-          test -f workflow-registry/publish-markdown-to-wiki.json
-          test -f workflow-registry/send-mattermost-notification.json
+          test -f workflow-registry/components/publish-markdown-to-wiki.json
+          test -f workflow-registry/components/send-mattermost-notification.json
           test -f mcp/n8n-workflow-skills/server.mjs
 
       - name: Compile Python scripts

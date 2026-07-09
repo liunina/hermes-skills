@@ -9,11 +9,9 @@ Create a workflow skill only for a reusable capability.
 Good examples:
 
 - Amazon competitor analysis
-- Publish markdown to Wiki.js
-- Send Mattermost notification
 - Generate product image report
 
-Avoid creating a skill for every internal workflow if it is only an implementation detail.
+Do not create a skill for every internal workflow. If a workflow only publishes, notifies, formats, stores, or wraps an implementation detail, record it as a component manifest under `workflow-registry/components/` instead.
 
 ## 2. Prepare n8n
 
@@ -35,6 +33,8 @@ The webhook wrapper should:
 - Avoid storing secrets in node text fields.
 
 ## 3. Create the Skill Folder
+
+Only do this for business workflow skills.
 
 ```text
 skills/<skill-id>/
@@ -67,14 +67,28 @@ workflow-registry/<skill-id>.json
 Required decisions:
 
 - `id`: stable skill id.
+- `manifestType`: use `business-skill`.
 - `status`: use `draft` until tested.
 - `workflows`: primary workflow, wrapper workflow, component workflows.
+- `componentDependencies`: component manifest ids under `workflow-registry/components/`.
 - `transport.urlEnv`: environment variable for webhook URL.
 - `transport.secretFile`: local secret file name under the installed MCP directory.
 - `defaults`: safe default input.
 - `sideEffectFields`: fields that publish, notify, write, send, delete, or mutate state.
 - `sideEffectMode`: use `field` when only specific boolean fields trigger side effects; use `always` when the skill writes or sends on every execution.
 - `outputFields`: fields the agent should inspect.
+
+## 4.1. Add Component Manifests When Needed
+
+For internal reusable workflows, create:
+
+```text
+workflow-registry/components/<component-id>.json
+```
+
+Use `manifestType: "workflow-component"`.
+
+Component manifests must not define `skillPath` or `contractPath`. They are implementation metadata, not agent-facing skills.
 
 ## 5. Validate
 

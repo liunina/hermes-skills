@@ -1,5 +1,6 @@
 {
   "id": "your-workflow-skill-id",
+  "manifestType": "business-skill",
   "name": "Human Readable Skill Name",
   "description": "What this workflow skill does and when an agent should use it.",
   "status": "draft",
@@ -7,6 +8,7 @@
   "tags": ["tool"],
   "skillPath": "skills/your-workflow-skill-id/SKILL.md",
   "contractPath": "skills/your-workflow-skill-id/references/mcp-contract.md",
+  "componentDependencies": [],
   "workflows": [
     {
       "role": "primary",

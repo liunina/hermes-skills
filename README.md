@@ -16,8 +16,6 @@ This repository is organized as a Hermes skill tap. Skills live under `skills/<n
 | `ecom-details-image` | ecommerce | 创建以转化为目标的电商图片简报、PDP/社媒/广告中英文双语 Prompt、Campaign Style Lock，并可通过 OpenAI/ChatGPT、Google Gemini 或 apimart.ai 直接生图。详见 [中文使用指南](./skills/ecom-details-image/README.md)。 |
 | `wikijs` | devops | Deploy and manage Wiki.js v2 — Docker deployment with PostgreSQL, nginx reverse proxy, locale configuration, GraphQL API CRUD, and programmatic page management. |
 | `amazon-competitor-analysis` | ecommerce | n8n-backed workflow skill for Amazon competitor analysis. Designed to run through the `n8n-workflow-skills` MCP manager. |
-| `publish-markdown-to-wiki` | publishing | n8n-backed component workflow skill for publishing or updating Markdown pages in Wiki.js. Always requires side-effect confirmation. |
-| `send-mattermost-notification` | notification | n8n-backed component workflow skill for sending Mattermost messages. Always requires side-effect confirmation. |
 
 ## Workflow Skills
 
@@ -25,13 +23,15 @@ Hermes skills are static capabilities: instructions, references, templates, and 
 
 Workflow skills add an execution layer. A workflow skill maps a reusable business capability to one or more published n8n workflows through `workflow-registry/*.json` and the `n8n-workflow-skills` MCP server.
 
+Only business capabilities live under `skills/`. Internal workflow components such as Wiki.js publishing or Mattermost notification are tracked under `workflow-registry/components/` and are not exposed as standalone agent skills.
+
 Core MCP tools:
 
 - `list_workflow_skills` — discover registered workflow skills.
 - `get_workflow_skill` — read the manifest and bundled skill instructions.
 - `run_workflow_skill` — execute the registered n8n workflow entrypoint.
 
-Component workflow skills such as `publish-markdown-to-wiki` and `send-mattermost-notification` use `sideEffectMode: "always"` because simply running them writes to an external system.
+Component workflow manifests can still declare `sideEffectMode: "always"` for auditability, but they are implementation dependencies rather than user-facing skills.
 
 Install the MCP manager:
 

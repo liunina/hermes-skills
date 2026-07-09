@@ -1,12 +1,11 @@
 {
   "id": "send-mattermost-notification",
+  "manifestType": "workflow-component",
   "name": "Send Mattermost Notification",
-  "description": "Send a Mattermost notification through a reusable n8n component workflow. Use as a component skill when an agent needs to notify a channel after a report, workflow, or operational event.",
+  "description": "Send a Mattermost notification through a reusable n8n component workflow. This is an implementation component used by business workflow skills, not a standalone agent skill.",
   "status": "active",
   "category": "notification",
   "tags": ["mattermost", "notification", "component", "n8n"],
-  "skillPath": "skills/send-mattermost-notification/SKILL.md",
-  "contractPath": "skills/send-mattermost-notification/references/mcp-contract.md",
   "workflows": [
     {
       "role": "primary",

@@ -1,5 +1,6 @@
 {
   "id": "amazon-competitor-analysis",
+  "manifestType": "business-skill",
   "name": "Amazon Competitor Analysis",
   "description": "Analyze Amazon competitors from ASINs, product links, or messy pasted text. Generate a competitor report and optionally publish to Wiki.js or notify Mattermost when explicitly confirmed.",
   "status": "active",
@@ -7,6 +8,10 @@
   "tags": ["amazon", "competitor", "listing", "wiki", "mattermost"],
   "skillPath": "skills/amazon-competitor-analysis/SKILL.md",
   "contractPath": "skills/amazon-competitor-analysis/references/mcp-contract.md",
+  "componentDependencies": [
+    "publish-markdown-to-wiki",
+    "send-mattermost-notification"
+  ],
   "workflows": [
     {
       "role": "primary",

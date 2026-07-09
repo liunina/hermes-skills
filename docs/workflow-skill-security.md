@@ -52,7 +52,7 @@ Every manifest can declare:
 
 Agents should only pass confirmation after the user explicitly asks for the side effect.
 
-For component skills that always write or send, use:
+For component workflow manifests that always write or send, use:
 
 ```json
 {
@@ -60,7 +60,7 @@ For component skills that always write or send, use:
 }
 ```
 
-In this mode, every execution is blocked unless the caller passes `confirmSideEffects: true`.
+Business skill execution must still require `confirmSideEffects: true` before it enables a component that writes or sends.
 
 ## Secret Scanning
 

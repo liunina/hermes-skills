@@ -30,10 +30,12 @@ function loadManifestFiles() {
 }
 
 function loadSkills() {
-  return loadManifestFiles().map((file) => ({
-    manifestPath: file,
-    ...readJson(file),
-  }));
+  return loadManifestFiles()
+    .map((file) => ({
+      manifestPath: file,
+      ...readJson(file),
+    }))
+    .filter((skill) => skill.manifestType === 'business-skill');
 }
 
 const skills = loadSkills();
@@ -165,7 +167,7 @@ const server = new McpServer({
 server.registerTool(
   'list_workflow_skills',
   {
-    description: 'List reusable n8n-backed workflow skills registered in this skill tap.',
+    description: 'List reusable business workflow skills registered in this skill tap. Implementation components are not exposed as standalone skills.',
     inputSchema: {
       query: z.string().optional().describe('Optional text search over id, name, description, category, and tags.'),
       tag: z.string().optional().describe('Optional exact tag filter.'),

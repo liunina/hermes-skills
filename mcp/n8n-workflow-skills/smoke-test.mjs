@@ -35,11 +35,17 @@ try {
   const skillIds = new Set((listedData.skills || []).map((skill) => skill.id));
   for (const required of [
     'amazon-competitor-analysis',
-    'publish-markdown-to-wiki',
-    'send-mattermost-notification',
   ]) {
     if (!skillIds.has(required)) {
       throw new Error(`${required} not listed: ${listedText}`);
+    }
+  }
+  for (const component of [
+    'publish-markdown-to-wiki',
+    'send-mattermost-notification',
+  ]) {
+    if (skillIds.has(component)) {
+      throw new Error(`Component manifest should not be listed as a workflow skill: ${component}`);
     }
   }
 
@@ -80,7 +86,7 @@ try {
     ok: true,
     tools: toolNames,
     listedAmazonCompetitorSkill: true,
-    listedComponentSkills: true,
+    hiddenComponentWorkflows: true,
     sideEffectGuarded: guardedSkillCount > 0,
     guardedSkillCount,
   }, null, 2));

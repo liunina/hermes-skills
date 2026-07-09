@@ -60,7 +60,7 @@ def require_dict(data: dict[str, Any], path: Path, field: str) -> dict[str, Any]
     return value
 
 
-def validate_manifest(path: Path) -> None:
+def validate_manifest(path: Path, expected_manifest_type: str, component_ids: set[str]) -> None:
     data = load_json(path)
     if not isinstance(data, dict):
         raise ValidationError(f"{path}: manifest must be an object")
@@ -68,6 +68,12 @@ def validate_manifest(path: Path) -> None:
     skill_id = require_string(data, path, "id")
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,62}[a-z0-9]", skill_id):
         raise ValidationError(f"{path}: invalid skill id `{skill_id}`")
+
+    manifest_type = require_string(data, path, "manifestType")
+    if manifest_type not in {"business-skill", "workflow-component"}:
+        raise ValidationError(f"{path}: invalid manifestType `{manifest_type}`")
+    if manifest_type != expected_manifest_type:
+        raise ValidationError(f"{path}: expected manifestType `{expected_manifest_type}`, got `{manifest_type}`")
 
     require_string(data, path, "name")
     require_string(data, path, "description")
@@ -79,17 +85,30 @@ def validate_manifest(path: Path) -> None:
     if not all(isinstance(tag, str) and tag for tag in tags):
         raise ValidationError(f"{path}: `tags` must contain non-empty strings")
 
-    skill_path = require_string(data, path, "skillPath")
-    if not skill_path.startswith("skills/") or not skill_path.endswith("/SKILL.md"):
-        raise ValidationError(f"{path}: skillPath must look like skills/<id>/SKILL.md")
-    if not (ROOT / skill_path).is_file():
-        raise ValidationError(f"{path}: skillPath does not exist: {skill_path}")
+    if manifest_type == "business-skill":
+        skill_path = require_string(data, path, "skillPath")
+        if not skill_path.startswith("skills/") or not skill_path.endswith("/SKILL.md"):
+            raise ValidationError(f"{path}: skillPath must look like skills/<id>/SKILL.md")
+        if not (ROOT / skill_path).is_file():
+            raise ValidationError(f"{path}: skillPath does not exist: {skill_path}")
 
-    contract_path = data.get("contractPath")
-    if contract_path is not None and (not isinstance(contract_path, str) or not contract_path):
-        raise ValidationError(f"{path}: contractPath must be a non-empty string when present")
-    if contract_path and not (ROOT / contract_path).is_file():
-        raise ValidationError(f"{path}: contractPath does not exist: {contract_path}")
+        contract_path = data.get("contractPath")
+        if contract_path is not None and (not isinstance(contract_path, str) or not contract_path):
+            raise ValidationError(f"{path}: contractPath must be a non-empty string when present")
+        if contract_path and not (ROOT / contract_path).is_file():
+            raise ValidationError(f"{path}: contractPath does not exist: {contract_path}")
+
+        dependencies = data.get("componentDependencies", [])
+        if not isinstance(dependencies, list) or not all(isinstance(item, str) and item for item in dependencies):
+            raise ValidationError(f"{path}: componentDependencies must contain non-empty strings")
+        missing = sorted(set(dependencies) - component_ids)
+        if missing:
+            raise ValidationError(f"{path}: unknown componentDependencies: {', '.join(missing)}")
+    else:
+        if "skillPath" in data:
+            raise ValidationError(f"{path}: workflow-component manifests must not define skillPath")
+        if "contractPath" in data:
+            raise ValidationError(f"{path}: workflow-component manifests must not define contractPath")
 
     workflows = require_list(data, path, "workflows")
     if not workflows:
@@ -157,17 +176,27 @@ def scan_secrets() -> None:
 
 
 def main() -> int:
-    manifest_paths = sorted(
+    business_manifest_paths = sorted(
         path for path in REGISTRY.glob("*.json") if path.name != "schema.json"
     )
-    if not manifest_paths:
+    component_manifest_paths = sorted((REGISTRY / "components").glob("*.json"))
+    if not business_manifest_paths:
         raise ValidationError("No workflow registry manifests found")
 
-    for path in manifest_paths:
-        validate_manifest(path)
+    component_ids = {require_string(load_json(path), path, "id") for path in component_manifest_paths}
+
+    for path in component_manifest_paths:
+        validate_manifest(path, "workflow-component", component_ids)
+
+    for path in business_manifest_paths:
+        validate_manifest(path, "business-skill", component_ids)
 
     scan_secrets()
-    print(f"Validated {len(manifest_paths)} workflow skill manifest(s).")
+    print(
+        "Validated "
+        f"{len(business_manifest_paths)} business workflow skill manifest(s) "
+        f"and {len(component_manifest_paths)} component manifest(s)."
+    )
     return 0
 
 

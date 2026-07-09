@@ -15,6 +15,9 @@ Workflow skills additionally register an executable n8n workflow entrypoint:
 - `mcp/n8n-workflow-skills`
 - runtime secrets stored outside Git
 
+Only reusable business capabilities become skills under `skills/`.
+Reusable implementation workflows stay under `workflow-registry/components/` as component manifests.
+
 ## Architecture
 
 ```text
@@ -24,6 +27,7 @@ Agent
   -> skills/<skill-id>/SKILL.md
   -> private n8n webhook wrapper
   -> published n8n workflow
+  -> optional component workflow manifests
 ```
 
 ## MCP Tools
@@ -40,7 +44,7 @@ Read one manifest plus its bundled `SKILL.md` and contract. Agents should call t
 
 Execute one workflow skill by `skillId`. Side-effect fields require `confirmSideEffects: true`.
 
-Component skills that always write or send, such as Wiki publishing and Mattermost notification, use:
+Component workflow manifests that always write or send, such as Wiki publishing and Mattermost notification, can still declare:
 
 ```json
 {
@@ -48,7 +52,7 @@ Component skills that always write or send, such as Wiki publishing and Mattermo
 }
 ```
 
-For these skills, every execution requires `confirmSideEffects: true`.
+Components are not exposed by `list_workflow_skills`; business skills decide when to call them.
 
 ## Install
 

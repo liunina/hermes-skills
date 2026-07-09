@@ -6,12 +6,12 @@
   "additionalProperties": false,
   "required": [
     "id",
+    "manifestType",
     "name",
     "description",
     "status",
     "category",
     "tags",
-    "skillPath",
     "workflows",
     "transport",
     "defaults",
@@ -22,6 +22,10 @@
     "id": {
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$"
+    },
+    "manifestType": {
+      "type": "string",
+      "enum": ["business-skill", "workflow-component"]
     },
     "name": {
       "type": "string",
@@ -52,6 +56,13 @@
     },
     "contractPath": {
       "type": "string"
+    },
+    "componentDependencies": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$"
+      }
     },
     "workflows": {
       "type": "array",

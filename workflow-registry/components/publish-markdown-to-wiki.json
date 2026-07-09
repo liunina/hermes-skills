@@ -1,12 +1,11 @@
 {
   "id": "publish-markdown-to-wiki",
+  "manifestType": "workflow-component",
   "name": "Publish Markdown to Wiki.js",
-  "description": "Publish or update a Markdown page in Wiki.js through a reusable n8n component workflow. Use as a component skill when an agent needs to create or update internal documentation after a report is generated.",
+  "description": "Publish or update a Markdown page in Wiki.js through a reusable n8n component workflow. This is an implementation component used by business workflow skills, not a standalone agent skill.",
   "status": "active",
   "category": "publishing",
   "tags": ["wiki", "wikijs", "markdown", "publish", "component", "n8n"],
-  "skillPath": "skills/publish-markdown-to-wiki/SKILL.md",
-  "contractPath": "skills/publish-markdown-to-wiki/references/mcp-contract.md",
   "workflows": [
     {
       "role": "primary",
@@ -45,4 +44,3 @@
     "message"
   ]
 }
-
