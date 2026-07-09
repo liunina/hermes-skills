@@ -94,7 +94,7 @@ Component manifests must not define `skillPath` or `contractPath`. They are impl
 
 ```bash
 python3 scripts/validate_workflow_registry.py
-cd mcp/n8n-workflow-skills
+cd mcp/workflow-dinve-skills
 npm ci --omit=dev
 node smoke-test.mjs
 ```
@@ -104,7 +104,7 @@ node smoke-test.mjs
 Install first:
 
 ```bash
-cd mcp/n8n-workflow-skills
+cd mcp/workflow-dinve-skills
 node install.mjs --client generic
 ```
 
@@ -112,8 +112,8 @@ Then add the webhook URL outside Git:
 
 ```bash
 printf '%s\n' '<private webhook url>' \
-  > ~/.mcp/n8n-workflow-skills/secrets/<skill-id>.webhook-url.txt
-chmod 600 ~/.mcp/n8n-workflow-skills/secrets/<skill-id>.webhook-url.txt
+  > ~/.mcp/workflow-dinve-skills/secrets/<skill-id>.webhook-url.txt
+chmod 600 ~/.mcp/workflow-dinve-skills/secrets/<skill-id>.webhook-url.txt
 ```
 
 ## 7. Test Side Effects

@@ -1,10 +1,10 @@
 {
-  "name": "n8n-workflow-skills-mcp",
+  "name": "workflow-dinve-skills-mcp",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "bin": {
-    "n8n-workflow-skills-mcp": "./server.mjs"
+    "workflow-dinve-skills-mcp": "./server.mjs"
   },
   "scripts": {
     "smoke": "node smoke-test.mjs",

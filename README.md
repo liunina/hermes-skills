@@ -15,13 +15,13 @@ This repository is organized as a Hermes skill tap. Skills live under `skills/<n
 |---|---|---|
 | `ecom-details-image` | ecommerce | 创建以转化为目标的电商图片简报、PDP/社媒/广告中英文双语 Prompt、Campaign Style Lock，并可通过 OpenAI/ChatGPT、Google Gemini 或 apimart.ai 直接生图。详见 [中文使用指南](./skills/ecom-details-image/README.md)。 |
 | `wikijs` | devops | Deploy and manage Wiki.js v2 — Docker deployment with PostgreSQL, nginx reverse proxy, locale configuration, GraphQL API CRUD, and programmatic page management. |
-| `amazon-competitor-analysis` | ecommerce | n8n-backed workflow skill for Amazon competitor analysis. Designed to run through the `n8n-workflow-skills` MCP manager. |
+| `amazon-competitor-analysis` | ecommerce | n8n-backed workflow skill for Amazon competitor analysis. Designed to run through the `workflow-dinve-skills` MCP manager. |
 
 ## Workflow Skills
 
 Hermes skills are static capabilities: instructions, references, templates, and scripts.
 
-Workflow skills add an execution layer. A workflow skill maps a reusable business capability to one or more published n8n workflows through `workflow-registry/*.json` and the `n8n-workflow-skills` MCP server.
+Workflow skills add an execution layer. A workflow skill maps a reusable business capability to one or more published n8n workflows through `workflow-registry/*.json` and the `workflow-dinve-skills` MCP server.
 
 Only business capabilities live under `skills/`. Internal workflow components such as Wiki.js publishing or Mattermost notification are tracked under `workflow-registry/components/` and are not exposed as standalone agent skills.
 
@@ -36,7 +36,7 @@ Component workflow manifests can still declare `sideEffectMode: "always"` for au
 Install the MCP manager:
 
 ```bash
-cd mcp/n8n-workflow-skills
+cd mcp/workflow-dinve-skills
 node install.mjs --client generic
 ```
 
@@ -100,7 +100,7 @@ python3 -m py_compile skills/wikijs/scripts/wiki-tree.py
 python3 -m py_compile skills/ecom-details-image/scripts/generate_image.py
 python3 tests/test_ecom_generate_image.py
 find skills/ecom-details-image/references/templates -name '*.json' -print -exec python3 -m json.tool {} \; >/dev/null
-cd mcp/n8n-workflow-skills && npm ci --omit=dev && node smoke-test.mjs
+cd mcp/workflow-dinve-skills && npm ci --omit=dev && node smoke-test.mjs
 ```
 
 ## License

@@ -4,7 +4,7 @@
 
 - Skill ID: `amazon-competitor-analysis`
 - Registry file: `workflow-registry/amazon-competitor-analysis.json`
-- MCP manager: `n8n-workflow-skills`
+- MCP manager: `workflow-dinve-skills`
 - Primary MCP call: `run_workflow_skill`
 
 ## Transport

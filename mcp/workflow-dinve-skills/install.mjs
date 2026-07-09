@@ -6,7 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
-const SERVER_NAME = 'n8n-workflow-skills';
+const SERVER_NAME = 'workflow-dinve-skills';
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, '..', '..');
 const home = homedir();
@@ -17,13 +17,13 @@ function usage() {
 
 Options:
   --client <name>       Target agent config. Default: generic.
-  --install-dir <path>  Install directory. Default: ~/.mcp/n8n-workflow-skills
+  --install-dir <path>  Install directory. Default: ~/.mcp/workflow-dinve-skills
   --no-config           Install files only; do not write agent config.
   --no-smoke-test       Skip MCP smoke test.
   --help                Show this help.
 
 Secrets:
-  Put webhook URLs in ~/.mcp/n8n-workflow-skills/secrets/*.webhook-url.txt
+  Put webhook URLs in ~/.mcp/workflow-dinve-skills/secrets/*.webhook-url.txt
   or provide the environment variable named by each registry manifest.
 `);
 }

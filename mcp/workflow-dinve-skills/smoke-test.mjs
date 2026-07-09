@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const serverDir = dirname(fileURLToPath(import.meta.url));
-const client = new Client({ name: 'n8n-workflow-skills-smoke-test', version: '0.1.0' });
+const client = new Client({ name: 'workflow-dinve-skills-smoke-test', version: '0.1.0' });
 const transport = new StdioClientTransport({
   command: process.execPath,
   args: [join(serverDir, 'server.mjs')],

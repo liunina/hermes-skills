@@ -11,7 +11,7 @@ metadata:
 
 # Amazon Competitor Analysis
 
-Use the `n8n-workflow-skills` MCP manager instead of recreating competitor analysis logic in the agent.
+Use the `workflow-dinve-skills` MCP manager instead of recreating competitor analysis logic in the agent.
 
 ## Invocation
 

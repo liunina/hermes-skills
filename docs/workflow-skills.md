@@ -12,7 +12,7 @@ Regular skills provide static agent knowledge:
 Workflow skills additionally register an executable n8n workflow entrypoint:
 
 - `workflow-registry/<skill-id>.json`
-- `mcp/n8n-workflow-skills`
+- `mcp/workflow-dinve-skills`
 - runtime secrets stored outside Git
 
 Only reusable business capabilities become skills under `skills/`.
@@ -22,7 +22,7 @@ Reusable implementation workflows stay under `workflow-registry/components/` as 
 
 ```text
 Agent
-  -> MCP server: n8n-workflow-skills
+  -> MCP server: workflow-dinve-skills
   -> workflow-registry/<skill-id>.json
   -> skills/<skill-id>/SKILL.md
   -> private n8n webhook wrapper
@@ -57,7 +57,7 @@ Components are not exposed by `list_workflow_skills`; business skills decide whe
 ## Install
 
 ```bash
-cd mcp/n8n-workflow-skills
+cd mcp/workflow-dinve-skills
 node install.mjs --client generic
 ```
 
@@ -94,8 +94,8 @@ or:
 
 ```bash
 printf '%s\n' '<private webhook url>' \
-  > ~/.mcp/n8n-workflow-skills/secrets/amazon-competitor-analysis.webhook-url.txt
-chmod 600 ~/.mcp/n8n-workflow-skills/secrets/amazon-competitor-analysis.webhook-url.txt
+  > ~/.mcp/workflow-dinve-skills/secrets/amazon-competitor-analysis.webhook-url.txt
+chmod 600 ~/.mcp/workflow-dinve-skills/secrets/amazon-competitor-analysis.webhook-url.txt
 ```
 
 Never commit real webhook URLs.

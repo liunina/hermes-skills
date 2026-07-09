@@ -160,7 +160,7 @@ async function executeWebhookSkill(skill, input, options) {
 }
 
 const server = new McpServer({
-  name: 'n8n-workflow-skills',
+  name: 'workflow-dinve-skills',
   version: '0.1.0',
 });
 
@@ -271,4 +271,4 @@ server.registerTool(
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
-console.error('n8n-workflow-skills MCP server running');
+console.error('workflow-dinve-skills MCP server running');
