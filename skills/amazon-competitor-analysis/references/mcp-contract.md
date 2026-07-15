@@ -270,6 +270,10 @@ Quality rules:
 - `notificationStatus`: Mattermost notification status.
 - `competitorMatrix`: Structured comparison data.
 - `imageStrategyAnalysis`: Image-strategy evidence, Gemini per-image visual status, cache-hit/request counts, failed-image list, and evidence limitations. The v2 HTML report additionally exposes this data as the “图片与 A+ 证据墙”, with a single-row horizontal gallery, competitor reference/borrowing summaries, and image-level scores. Expanded image details are separated into OCR, visible elements/claims, and visual recommendations; missing/failed Gemini results remain explicitly marked as unavailable evidence.
+- `decisionSummary`: Executive decision summary for report-v2, including the one-line competitive headline, measurable market signals, and data-quality context.
+- `opportunityItems`: Deduplicated structured opportunity items with text, priority, evidence, action, confidence, source, ASIN attribution, and merged ASIN/source lists. The HTML report shows Top 3 first and keeps the remaining items behind “查看全部”。
+- `riskItems`: Deduplicated structured risk items with the same evidence and priority fields as `opportunityItems`; compliance/claim risks are conservatively promoted to `P0` when no explicit priority is supplied.
+- `actionItems`: Structured execution items grouped in the HTML report into `P0`/`P1`/`P2`/`待确认` buckets. Each item links back to the relevant evidence section when its source indicates imagery, A+, visual analysis, Review, or pain points.
 - `reportQa`: Final-report QA result with `passed`, `blockingIssues`, `warnings`, `checkedAt`, and `version`.
 - `wikiPublish`: Raw Wiki component result.
 - `mattermostNotify`: Raw Mattermost component result.
