@@ -132,13 +132,26 @@ const normalizedEntities = entities.map((entity) => {
   const visualEvidence = visualResults.map((result, index) => {
     const sourceUrl = clean(result.url || result.normalizedUrl);
     const cached = cachedImages.find((image) => image.sourceUrl === sourceUrl || image.sourceUrl === clean(result.normalizedUrl));
+    const ocrText = uniqueText(
+      result.ocrText,
+      result.ocr,
+      result.recognizedText,
+      result.detectedText,
+      result.visibleText,
+      result.textRegions,
+    ).slice(0, 10);
+    const visibleElements = uniqueText(result.visibleObjects, result.evidence).slice(0, 8);
+    const visibleClaims = uniqueText(result.visibleClaims).slice(0, 8);
     return {
       ...result,
       index: Number(result.position ?? index),
       displayUrl: cached?.displayUrl || sourceUrl,
       role: clean(result.role || result.imageType || 'image'),
       coreMessage: clean(result.coreMessage || result.useCase || ''),
-      observations: uniqueText(result.visibleObjects, result.visibleClaims, result.evidence).slice(0, 8),
+      ocrText,
+      visibleElements,
+      visibleClaims,
+      observations: uniqueText(visibleElements, visibleClaims).slice(0, 8),
       strengths: uniqueText(result.conversionStrengths).slice(0, 5),
       opportunities: uniqueText(result.opportunities).slice(0, 5),
       risks: uniqueText(result.risks, result.complianceRisks).slice(0, 5),
@@ -146,6 +159,7 @@ const normalizedEntities = entities.map((entity) => {
     };
   });
   const visualObservations = uniqueText(imageAplus.observations, visualEvidence.map((result) => result.coreMessage)).slice(0, 6);
+  const visualStrengths = uniqueText(imageAplus.strengths, imageAplus.conversionStrengths, visualEvidence.flatMap((result) => result.strengths), analysis.sellingPoints).slice(0, 8);
   const visualOpportunities = uniqueText(imageAplus.conversionFunnelGaps, visualEvidence.flatMap((result) => result.opportunities)).slice(0, 6);
   const visualRisks = uniqueText(imageAplus.missingContent, visualEvidence.flatMap((result) => result.risks)).slice(0, 6);
   const aplusCount = Number(entity.aplusImageCount ?? listing.aplusImageCount ?? analysis.aplusImageCount ?? cachedImages.filter((item) => item.assetRole === 'aplus').length) || 0;
@@ -179,6 +193,7 @@ const normalizedEntities = entities.map((entity) => {
     images: cachedImages,
     visualEvidence,
     visualObservations,
+    visualStrengths,
     visualOpportunities,
     visualRisks,
     visualStatus: clean(visual.status || imageAplus.visualStatus || ''),
@@ -198,11 +213,22 @@ const normalizedEntities = entities.map((entity) => {
 });
 
 const inlineMarkdown = (value) => {
-  let text = escapeHtml(value);
+  const imageParts = [];
+  const imageToken = (src, alt = '报告图片') => {
+    const safeSource = safeUrl(src);
+    if (!safeSource) return '';
+    const token = `__REPORT_IMAGE_${imageParts.length}__`;
+    imageParts.push({ token, html: `<img loading="lazy" src="${escapeHtml(safeSource)}" alt="${escapeHtml(alt || '报告图片')}">` });
+    return token;
+  };
+  let sourceText = clean(value)
+    .replace(/<img\b[^>]*>/gi, (tag) => imageToken(tag.match(/\bsrc\s*=\s*["'](https?:\/\/[^"']+)["']/i)?.[1], tag.match(/\balt\s*=\s*["']([^"']*)["']/i)?.[1]))
+    .replace(/!\[([^\]]*)\]\((https?:\/\/[^)\s]+)(?:\s+["'][^"']*["'])?\)/g, (_, alt, src) => imageToken(src, alt));
+  let text = escapeHtml(sourceText);
   text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
   text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  text = text.replace(/!\[([^\]]*)\]\((https?:\/\/[^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g, '<img loading="lazy" src="$2" alt="$1">');
   text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  for (const part of imageParts) text = text.split(part.token).join(part.html);
   return text;
 };
 const renderMarkdown = (markdown) => {
@@ -453,6 +479,7 @@ const productData = normalizedEntities.map((entity) => ({
   visualFailedImageCount: entity.visualFailedImageCount || 0,
   visualCacheHitCount: entity.visualCacheHitCount || 0,
   visualObservations: entity.visualObservations || [],
+  visualStrengths: entity.visualStrengths || [],
   visualOpportunities: entity.visualOpportunities || [],
   visualRisks: entity.visualRisks || [],
   visualEvidence: (entity.visualEvidence || []).map((result) => ({
@@ -460,6 +487,9 @@ const productData = normalizedEntities.map((entity) => ({
     role: result.role,
     index: result.index,
     coreMessage: result.coreMessage,
+    ocrText: result.ocrText,
+    visibleElements: result.visibleElements,
+    visibleClaims: result.visibleClaims,
     observations: result.observations,
     strengths: result.strengths,
     opportunities: result.opportunities,
@@ -502,9 +532,22 @@ const v2ProductCards = normalizedEntities.map((entity) => `
       </article>`).join('');
 const v2ComparisonRows = normalizedEntities.map((entity) => `<tr data-asin="${escapeHtml(entity.asin)}" data-price="${entity.priceNumeric ?? ''}" data-rating="${entity.ratingNumeric ?? ''}" data-reviewcountnumeric="${entity.reviewCountNumeric ?? ''}" data-score="${scoreValue(entity) ?? ''}"><td><strong>${entity.itemRole === 'own' ? '我方' : '竞品'}</strong><br>${escapeHtml(entity.asin)}</td><td>${escapeHtml(entity.brand)}</td><td>${escapeHtml(entity.price)}</td><td>${escapeHtml(entity.rating)}</td><td>${escapeHtml(entity.reviewCount)}</td><td>${escapeHtml(scoreLabel(entity))}</td><td>${entity.imageCount}</td><td>${escapeHtml(statusLabel(entity.aplusStatus, entity.aplusCount, 'A+').label)}</td></tr>`).join('');
 const v2Gallery = normalizedEntities.map((entity) => {
-  const figures = entity.images.map((image) => `<figure><img loading="lazy" src="${escapeHtml(image.displayUrl)}" alt="${escapeHtml(entity.asin + ' ' + image.assetRole)}"><figcaption>${escapeHtml(image.assetRole)} · ${image.sourceFetchStatus === 'placeholder' ? '占位图' : 'MinIO 已缓存'}</figcaption></figure>`).join('');
-  const visualSummary = `<div class="visual-summary"><div class="visual-summary-head"><div><span class="eyebrow">视觉分析</span><strong>${entity.visualAnalyzedImageCount || entity.visualEvidence.length ? `已分析 ${entity.visualAnalyzedImageCount || entity.visualEvidence.length} 张` : '未返回逐图分析'}</strong></div><span class="tag ${entity.visualFailedImageCount ? 'warn' : 'good'}">缓存命中 ${entity.visualCacheHitCount || 0} · 失败 ${entity.visualFailedImageCount || 0}</span></div><div class="visual-summary-grid"><div><h4>核心观察</h4>${listHtml(entity.visualObservations, '暂无可验证的视觉观察')}</div><div><h4>转化建议</h4>${listHtml(entity.visualOpportunities, '暂无结构化视觉建议')}</div><div><h4>风险 / 待补证据</h4>${listHtml(entity.visualRisks, '暂无结构化视觉风险')}</div></div>${entity.visualEvidence.length ? `<details class="evidence"><summary>展开逐图视觉分析与评分</summary><div class="visual-evidence-grid">${entity.visualEvidence.map((result) => `<article class="visual-evidence-card">${result.displayUrl ? `<img loading="lazy" src="${escapeHtml(result.displayUrl)}" alt="${escapeHtml(entity.asin)} ${escapeHtml(result.role)} ${Number(result.index) + 1}">` : ''}<div class="visual-evidence-body"><div class="visual-evidence-meta"><span>${escapeHtml(result.role || 'image')} #${Number(result.index) + 1}</span><span>清晰 ${escapeHtml(result.scores?.clarity ?? '-')} · 转化 ${escapeHtml(result.scores?.conversion ?? '-')}</span></div><strong>${escapeHtml(result.coreMessage || '未返回核心信息')}</strong>${listHtml(result.observations, '未返回可见元素/文案证据')}${listHtml(result.opportunities, '未返回逐图建议')}${listHtml(result.risks, '未返回逐图风险')}</div></article>`).join('')}</div></details>` : ''}</div>`;
-  return `<div class="gallery-group" data-asin="${escapeHtml(entity.asin)}"><h3 class="gallery-title"><span class="tag ${entity.itemRole === 'own' ? 'brand' : ''}">${entity.itemRole === 'own' ? '我方' : '竞品'}</span>${escapeHtml(entity.asin)} · 商品图 / A+ 图</h3>${figures ? `<div class="gallery">${figures}</div>` : '<div class="empty">数据源未返回可缓存图片</div>'}${visualSummary}</div>`;
+  const isOwn = entity.itemRole === 'own';
+  const figures = entity.images.map((image) => `<figure><img loading="lazy" src="${escapeHtml(image.displayUrl)}" alt="${escapeHtml(entity.asin + ' ' + image.assetRole)}"><figcaption><span class="asset-role">${escapeHtml(image.assetRole === 'aplus' ? 'A+ 图' : image.assetRole === 'main' ? '主图' : '商品图')}</span><span>${image.sourceFetchStatus === 'placeholder' ? '占位图' : 'MinIO 已缓存'}</span></figcaption></figure>`).join('');
+  const visualSummary = isOwn
+    ? `<div class="visual-summary visual-summary-own"><div class="visual-summary-head"><div><span class="eyebrow">我方素材诊断</span><strong>${entity.visualAnalyzedImageCount || entity.visualEvidence.length ? `已分析 ${entity.visualAnalyzedImageCount || entity.visualEvidence.length} 张` : '未返回逐图分析'}</strong></div><span class="tag ${entity.visualFailedImageCount ? 'warn' : 'good'}">缓存命中 ${entity.visualCacheHitCount || 0} · 失败 ${entity.visualFailedImageCount || 0}</span></div><div class="visual-summary-grid"><div><h4>核心观察</h4>${listHtml(entity.visualObservations, '暂无可验证的视觉观察')}</div><div><h4>改版建议</h4>${listHtml(entity.visualOpportunities, '暂无结构化视觉建议')}</div><div><h4>风险 / 待补证据</h4>${listHtml(entity.visualRisks, '暂无结构化视觉风险')}</div></div>`
+    : `<div class="visual-summary visual-summary-reference"><div class="visual-summary-head"><div><span class="eyebrow">竞品素材参考</span><strong>${entity.visualAnalyzedImageCount || entity.visualEvidence.length ? `已提炼 ${entity.visualAnalyzedImageCount || entity.visualEvidence.length} 张素材` : '未返回逐图分析'}</strong></div><span class="tag good">用于借鉴，不作缺陷判定</span></div><p class="reference-note">从竞品中提炼可迁移的构图、信息组织和卖点表达方式，供我方 Listing 改版参考。</p><div class="visual-summary-grid visual-summary-grid-reference"><div><h4>值得借鉴的亮点</h4>${listHtml(entity.visualStrengths.length ? entity.visualStrengths : entity.visualObservations, '暂无可验证的视觉亮点')}</div><div><h4>可迁移的表达方式</h4>${listHtml(entity.visualOpportunities, '暂无结构化借鉴方向')}</div></div>`;
+  const evidenceCards = entity.visualEvidence.map((result) => {
+    const ocrText = listHtml(result.ocrText, '未检测到可读文字');
+    const visibleElements = listHtml(result.visibleElements || result.observations, '未返回画面元素证据');
+    const visibleClaims = listHtml(result.visibleClaims, '未返回可验证主张');
+    const visualAdvice = isOwn
+      ? `<div class="visual-evidence-block"><h5>视觉分析与改版建议</h5>${listHtml(result.strengths, '未返回视觉优势')}${listHtml(result.opportunities, '未返回逐图建议')}${listHtml(result.risks, '未返回逐图风险')}</div>`
+      : `<div class="visual-evidence-block"><h5>视觉分析与借鉴建议</h5>${listHtml(result.strengths, '未返回可借鉴亮点')}${listHtml(result.opportunities, '未返回可迁移方向')}</div>`;
+    return `<article class="visual-evidence-card"><div class="visual-evidence-media">${result.displayUrl ? `<img loading="lazy" src="${escapeHtml(result.displayUrl)}" alt="${escapeHtml(entity.asin)} ${escapeHtml(result.role)} ${Number(result.index) + 1}">` : '<div class="empty">图片未返回</div>'}<span class="visual-image-role">${escapeHtml(result.role || 'image')} #${Number(result.index) + 1}</span></div><div class="visual-evidence-body"><div class="visual-evidence-meta"><span>${escapeHtml(result.coreMessage || '未返回核心信息')}</span><span>清晰 ${escapeHtml(result.scores?.clarity ?? '-')} · 转化 ${escapeHtml(result.scores?.conversion ?? '-')}</span></div><div class="visual-evidence-columns"><div class="visual-evidence-block visual-evidence-ocr"><h5>文字识别（OCR）</h5>${ocrText}</div><div class="visual-evidence-block"><h5>画面证据</h5><div class="evidence-subblock"><h6>可见元素</h6>${visibleElements}</div><div class="evidence-subblock"><h6>可见主张</h6>${visibleClaims}</div></div>${visualAdvice}</div></div></article>`;
+  }).join('');
+  const evidenceDetails = entity.visualEvidence.length ? `<details class="evidence"><summary>展开逐图视觉分析与评分</summary><div class="visual-evidence-grid">${evidenceCards}</div></details>` : '';
+  return `<div class="gallery-group" data-asin="${escapeHtml(entity.asin)}"><h3 class="gallery-title"><span class="tag ${isOwn ? 'brand' : ''}">${isOwn ? '我方' : '竞品'}</span>${escapeHtml(entity.asin)} · 商品图 / A+ 图</h3>${figures ? `<div class="gallery gallery-scroll" tabindex="0" aria-label="${escapeHtml(entity.asin)} 商品图和 A+ 图">${figures}</div>` : '<div class="empty">数据源未返回可缓存图片</div>'}${visualSummary}${evidenceDetails}</div>`;
 }).join('');
 const v2Html = isV2 ? `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Amazon 竞品分析可视化报告 ${escapeHtml(config.ownAsin)}"><title>${escapeHtml(reportTitle)}</title><link rel="stylesheet" href="${escapeHtml(config.cssUrl)}"></head>

@@ -269,7 +269,7 @@ Quality rules:
 - `publishStatus`: Wiki publishing status.
 - `notificationStatus`: Mattermost notification status.
 - `competitorMatrix`: Structured comparison data.
-- `imageStrategyAnalysis`: Image-strategy evidence, Gemini per-image visual status, cache-hit/request counts, failed-image list, and evidence limitations. The v2 HTML report additionally exposes this data as the “图片与 A+ 证据墙”, including image-level observations, conversion opportunities, risks, and scores; missing/failed Gemini results remain explicitly marked as unavailable evidence.
+- `imageStrategyAnalysis`: Image-strategy evidence, Gemini per-image visual status, cache-hit/request counts, failed-image list, and evidence limitations. The v2 HTML report additionally exposes this data as the “图片与 A+ 证据墙”, with a single-row horizontal gallery, competitor reference/borrowing summaries, and image-level scores. Expanded image details are separated into OCR, visible elements/claims, and visual recommendations; missing/failed Gemini results remain explicitly marked as unavailable evidence.
 - `reportQa`: Final-report QA result with `passed`, `blockingIssues`, `warnings`, `checkedAt`, and `version`.
 - `wikiPublish`: Raw Wiki component result.
 - `mattermostNotify`: Raw Mattermost component result.

@@ -3,7 +3,7 @@ name: amazon-competitor-analysis
 description: Analyze Amazon competitors through a registered n8n workflow skill. Use when the user asks to compare Amazon ASINs, product links, market positioning, price bands, review patterns, listing opportunities, image strategy, keywords, A+ page gaps, or publish a competitor report to Wiki.js and optionally notify Mattermost.
 metadata:
   hermes:
-    version: 0.5.0
+    version: 0.5.1
     author: liunina
     tags: [amazon, competitor, listing, ecommerce, n8n, workflow]
     category: ecommerce
@@ -83,7 +83,8 @@ The v2 topology now uses a v3.1 deterministic final-report renderer on top of th
 - Recognize Decodo's `has_videos` field as video evidence metadata. A returned `false` means video status can be `absent`; a missing video field remains `unknown_not_supported`.
 - The main report is business-readable Chinese. Japanese source text may be quoted as evidence, but should be wrapped in `“”` and not mixed into Chinese explanatory sentences.
 - Target audience and usage scenarios must be separate report subsections.
-- The v2 HTML report includes an “图片与 A+ 证据墙”: every ASIN shows actual product/A+ images, visual-analysis status, cache-hit/failed counts, aggregated observations, conversion opportunities, risks, and an expandable per-image Gemini analysis with core message, visible claims/evidence, strengths, opportunities, risks, and clarity/conversion scores. If Gemini has no usable result, the UI must show the evidence limitation rather than fabricate advice.
+- The v2 HTML report includes an “图片与 A+ 证据墙”: every ASIN shows actual product/A+ images in a single horizontal scroll row, visual-analysis status, cache-hit/failed counts, and an expandable per-image Gemini analysis. Owned assets use diagnostic sections; competitor assets use reference sections (“值得借鉴的亮点 / 可迁移的表达方式”) and must not be framed as defects. Each image detail keeps “文字识别（OCR）”, “画面证据（可见元素 / 可见主张）”, and “视觉分析与改版建议 / 借鉴建议” as separate blocks. If Gemini has no usable result, the UI must show the evidence limitation rather than fabricate advice.
+- The report-v2 renderer safely converts allowlisted remote Markdown/HTML `<img>` tags into real lazy-loaded images in the full report, while escaping all other raw HTML. Shared CSS, JavaScript, icons, and fonts are published as reusable MinIO assets.
 - Main Wiki reports may summarize image/A+/video strategy; per-image OCR/Gemini details remain in child pages and Data Table JSON, while the v2 HTML evidence wall renders the structured visual fields for decision-making.
 - Title suggestions must mention the Japan Amazon 75-character constraint and flag over-length candidates.
 - Final Wiki publishing is gated by `reportQa.passed`; dry-runs and QA-blocked reports must not publish.
