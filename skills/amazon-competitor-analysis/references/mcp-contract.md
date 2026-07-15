@@ -26,7 +26,8 @@ The production transport points to the v2 wrapper. The legacy wrapper remains re
 3. **Single-item subworkflow v2** analyzes either one owned Listing (`itemRole: own`) or one competitor (`itemRole: competitor`), writes strict structured JSON to the item Data Table, optionally publishes a Wiki child page, and returns compact status.
 4. **Review / Q&A mining** uses real Review samples, rating distribution, answered-question metadata, and Q&A text when present in the Decodo response. Missing Q&A text must be marked `unavailable` or `metadata_only`; the workflow must not invent questions, answers, review counts, or frequencies.
 5. **Final report generation** aggregates the compact item JSON into a professional long-form Wiki report. It includes an owned-Listing baseline, field-by-field owned-vs-competitor gaps, real Review/Q&A sample themes and evidence limits, quick conclusions, competitor matrix, price/spec bands, selling-point patterns, image/A+ funnel, keyword/title formula, compliance risks, Listing rewrite suggestions, and P0/P1/P2 action plan.
-6. **Query run v2** is a read-only status endpoint that accepts `runId` and returns the run row, item rows, failure reasons, and Wiki links.
+6. **HTML / MinIO publishing** optionally converts the final report and structured input into a responsive visual HTML report, downloads selected Listing/A+ images, stores shared CSS and JSON artifacts, and preserves an immutable snapshot per `runId`.
+7. **Query run v2** is a read-only status endpoint that accepts `runId` and returns the run row, item rows, failure reasons, Wiki links, HTML links, and artifact status.
 
 The current v3 implementation adds three persistent cache layers without changing the public v2 wrapper:
 
@@ -60,6 +61,17 @@ Wiki path convention:
 - Item page: `home/areas/ecommerce/amazon/competitor-analysis/{ownAsin}/items/{competitorAsin}`.
 - Owned Listing page: `home/areas/ecommerce/amazon/competitor-analysis/{ownAsin}/own-listing`.
 
+MinIO object convention:
+
+- Bucket: `amazon-reports`.
+- Latest HTML: `amazon/competitor-analysis/{ownAsin}/index.html`.
+- Run snapshot: `amazon/competitor-analysis/{ownAsin}/runs/{runId}/index.html`.
+- Run metadata: `amazon/competitor-analysis/{ownAsin}/runs/{runId}/manifest.json` and `report-data.json`.
+- Cached report images: `amazon/competitor-analysis/{ownAsin}/runs/{runId}/assets/images/`.
+- Shared CSS: `amazon/competitor-analysis/_assets/css/report-v1.css`.
+- Standard URL base: `https://data.dinve.com/amazon-reports`. The shorter `https://data.dinve.com/amazon/competitor-analysis/...` form is valid only after a reverse proxy hides the bucket name.
+- Object upload success does not make a private bucket public. Delivery requires anonymous read-only access for the object prefix or an authenticated/reverse-proxy layer; never allow anonymous writes.
+
 Read-only query endpoint:
 
 - Workflow: `[工具] Query Amazon competitor analysis run v2`
@@ -92,6 +104,16 @@ Read-only query endpoint:
   "dryRun": true,
   "publishWiki": false,
   "publishItemWiki": false,
+  "publishHtml": false,
+  "htmlEndpointBaseUrl": "https://data.dinve.com",
+  "htmlS3Bucket": "amazon-reports",
+  "htmlS3Prefix": "amazon/competitor-analysis",
+  "htmlPublicBaseUrl": "https://data.dinve.com/amazon-reports",
+  "htmlShortBaseUrl": "https://data.dinve.com",
+  "htmlUseShortUrl": false,
+  "htmlStyleVersion": "v1",
+  "htmlMaxProductImages": 5,
+  "htmlMaxAplusImages": 4,
   "notifyMattermost": false,
   "wikiPath": "",
   "wikiPathPrefix": "home/areas/ecommerce/amazon/competitor-analysis",
@@ -122,9 +144,14 @@ Read-only query endpoint:
 - `analysisCacheTtlHours`: Positive final strict-JSON TTL. Default 24; bounded to 0.25–168 hours.
 - `allowStaleOnError`: Default `true`. When a live Listing fetch fails, a still-usable stale normalized Listing may be returned with decision `stale_fallback`.
 - `staleMaxAgeHours`: Default 168; bounded to 1–720 hours.
-- `dryRun`: Skips Wiki and Mattermost, but may still call AI and scraping services inside the workflow.
+- `dryRun`: Skips Wiki, HTML/MinIO, and Mattermost publishing, but may still call AI and scraping services inside the workflow.
 - `publishWiki`: Side effect. Requires `confirmSideEffects: true`.
 - `publishItemWiki`: Side effect. Requires `confirmSideEffects: true`. In v2, publishes/updates one child page per competitor.
+- `publishHtml`: Side effect. Requires `confirmSideEffects: true`. When the user asks to publish the final Wiki report, callers should normally set both `publishWiki: true` and `publishHtml: true` unless the user opts out of HTML.
+- `htmlS3Prefix`: Default `amazon/competitor-analysis`; trim leading/trailing slashes and keep other Amazon business artifacts under separate prefixes.
+- `htmlPublicBaseUrl`: Default `https://data.dinve.com/amazon-reports`, including the bucket name required by the current MinIO endpoint.
+- `htmlUseShortUrl`: Default `false`. Set true only after the reverse proxy route is proven to serve the bucket-backed path.
+- `htmlMaxProductImages` / `htmlMaxAplusImages`: Per-ASIN report image limits, bounded to 0–8. Defaults are 5 product images and 4 A+ images, plus one main image.
 - `notifyMattermost`: Side effect. Requires `confirmSideEffects: true`.
 - `wikiPathPrefix`: v2 default is `home/areas/ecommerce/amazon/competitor-analysis`.
 
@@ -222,6 +249,11 @@ Quality rules:
 - `title`: Report title.
 - `report` / `output`: Markdown report.
 - `wikiLink`: Wiki.js page URL when published.
+- `htmlReportUrl`: Latest visual HTML report URL when uploaded successfully.
+- `htmlArchiveUrl`: Immutable run-specific visual HTML report URL.
+- `htmlPublishStatus`: `disabled`, `success`, `partial_success`, or `failed`.
+- `htmlPublishError`: Aggregated per-artifact upload failure reason.
+- `artifacts`: CSS/HTML/JSON object list with S3 keys, public URLs, hashes, statuses, and error messages.
 - `runId`: v2 run identifier for polling, dedupe, and troubleshooting.
 - `accepted`: For async v2 calls, `true` means the run was accepted and continues in the background.
 - `queryHint`: For async v2 calls, includes the `runId` to poll through the query workflow.

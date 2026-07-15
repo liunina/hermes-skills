@@ -3,7 +3,7 @@ name: amazon-competitor-analysis
 description: Analyze Amazon competitors through a registered n8n workflow skill. Use when the user asks to compare Amazon ASINs, product links, market positioning, price bands, review patterns, listing opportunities, image strategy, keywords, A+ page gaps, or publish a competitor report to Wiki.js and optionally notify Mattermost.
 metadata:
   hermes:
-    version: 0.3.0
+    version: 0.4.0
     author: liunina
     tags: [amazon, competitor, listing, ecommerce, n8n, workflow]
     category: ecommerce
@@ -22,6 +22,7 @@ For trigger regression examples, read `../../docs/evals/amazon-competitor-analys
 2. Call `run_workflow_skill` with `skillId: "amazon-competitor-analysis"` and the structured input.
 3. Keep `dryRun: true`, `publishWiki: false`, and `notifyMattermost: false` for first runs or debugging.
 4. Only set `publishWiki: true` or `notifyMattermost: true` when the user explicitly asks for those side effects. Also pass `confirmSideEffects: true`.
+5. When the user asks to publish the final Wiki report, also set `publishHtml: true` unless they explicitly opt out of the visual HTML artifact. HTML publishing is a separate side effect and also requires `confirmSideEffects: true`.
 
 ## v2 Workflow
 
@@ -56,6 +57,20 @@ The v2 workflow topology now uses a v3 cache policy so repeated batches do not r
 - Per-item `analysisJson_object.cache` records cache mode, Listing decision, Gemini hit/request counts, final-analysis decision, and whether the final result came from cache or OpenAI.
 - Maintenance workflow `[维护] Clean Amazon competitor analysis caches` runs daily at 03:30 in `Asia/Tokyo`. Manual/subworkflow calls default to dry-run and require both `dryRun: false` and `confirmDelete: true` for deletion.
 
+## HTML / MinIO Report Publishing
+
+The production orchestrator can publish a responsive visual HTML report in addition to Wiki.js through `[子工作流] Publish Amazon competitor HTML report` (`bgSmA8Iog0iTVePj`).
+
+- Enable it with `publishHtml: true`; keep it false for dry-runs and read-only analysis.
+- Store the latest report at `amazon/competitor-analysis/{ownAsin}/index.html`.
+- Store immutable run artifacts under `amazon/competitor-analysis/{ownAsin}/runs/{runId}/`, including `index.html`, `manifest.json`, `report-data.json`, and cached Listing/A+ images.
+- Store shared CSS at `amazon/competitor-analysis/_assets/css/report-v1.css`.
+- Use bucket `amazon-reports` and the standard public base URL `https://data.dinve.com/amazon-reports` by default.
+- Keep `htmlUseShortUrl: false` unless a reverse proxy maps `/amazon/competitor-analysis/*` to `/amazon-reports/amazon/competitor-analysis/*`.
+- MinIO must grant anonymous read-only access to the `amazon/competitor-analysis/` object prefix, or an authenticated/reverse-proxy delivery layer must serve it. Never grant anonymous write access.
+- Image download failures create visible placeholder SVGs and do not abort the report; artifact upload failures return `partial_success` or `failed` with per-object reasons.
+- The query workflow returns `htmlReportUrl`, `htmlArchiveUrl`, `htmlPublishStatus`, `htmlPublishError`, and `artifacts` for completed runs.
+
 ## v3.1 Report Quality Renderer
 
 The v2 topology now uses a v3.1 deterministic final-report renderer on top of the v3 cache layers.
@@ -85,6 +100,7 @@ The v2 topology now uses a v3.1 deterministic final-report renderer on top of th
 - Image recommendations follow a fixed conversion framework: the main image attracts clicks, feature images explain selling points, and detail images reduce buyer doubts.
 - The single-item workflow sends up to 8 product images and 4 A+ images to Gemini for pixel-bounded, per-image visual analysis. Treat failed images as unavailable evidence and never infer invisible content from the URL or filename.
 - Use `reportQa` to decide whether a generated final report is publishable. If `reportQa.passed` is false, inspect `blockingIssues`, fix the workflow/report data, and rerun before enabling Wiki publish.
+- Default `publishHtml` to `false` in generic calls. When the user asks to publish the final Wiki report, explicitly send both `publishWiki: true` and `publishHtml: true` unless they opt out of HTML.
 
 ## Input Example
 
@@ -98,6 +114,7 @@ The v2 topology now uses a v3.1 deterministic final-report renderer on top of th
     "maxCompetitors": 1,
     "dryRun": true,
     "publishWiki": false,
+    "publishHtml": false,
     "notifyMattermost": false
   }
 }
@@ -109,6 +126,7 @@ These fields trigger side effects and require explicit user approval:
 
 - `publishWiki`: publish or update a Wiki.js report.
 - `publishItemWiki`: publish or update per-competitor Wiki child pages in the v2 candidate workflow.
+- `publishHtml`: upload the visual HTML report, shared CSS, JSON artifacts, and selected Listing/A+ images to MinIO S3.
 - `notifyMattermost`: send a Mattermost notification.
 
 The MCP manager must reject these fields unless `confirmSideEffects: true` is supplied.
@@ -119,9 +137,10 @@ Return business-useful fields first:
 
 1. Report title and short conclusion.
 2. Wiki link when published.
-3. Number of competitors analyzed and failures.
-4. Mattermost notification status when requested.
-5. Image strategy status and its evidence limitations.
-6. Operational warnings such as AI timeout, Decodo failure, Wiki publish failure, or Mattermost credential failure.
+3. HTML latest/archive links and artifact publish status when requested.
+4. Number of competitors analyzed and failures.
+5. Mattermost notification status when requested.
+6. Image strategy status and its evidence limitations.
+7. Operational warnings such as AI timeout, Decodo failure, Wiki/HTML publish failure, or Mattermost credential failure.
 
 Never print API keys, bot tokens, or credential values.

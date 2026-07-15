@@ -5,7 +5,7 @@
   "description": "Analyze Amazon competitors from ASINs, product links, or messy pasted text. Evaluate image strategy as a conversion funnel: main image attracts clicks, feature images explain selling points, and detail images reduce buyer doubts.",
   "status": "active",
   "category": "amazon",
-  "tags": ["amazon", "competitor", "listing", "wiki", "mattermost"],
+  "tags": ["amazon", "competitor", "listing", "wiki", "html", "minio", "mattermost"],
   "skillPath": "skills/amazon-competitor-analysis/SKILL.md",
   "contractPath": "skills/amazon-competitor-analysis/references/mcp-contract.md",
   "componentDependencies": [
@@ -32,7 +32,7 @@
       "name": "[工具] Analyze Amazon competitors orchestrator v2",
       "id": "3WraKTwcR36ddo50",
       "active": true,
-      "notes": "Validated v3.1 quality orchestrator. Keeps one main entrypoint, dispatches the owned Listing plus competitor items, writes run/item Data Tables, tolerates per-item failures, and generates a professional deterministic report from structured Listing and Review/Q&A results. Final reports render main-image thumbnails, separate target audience from usage scenarios, distinguish A+/video unknown from absent, and gate Wiki publish through reportQa."
+      "notes": "Validated v3.1 quality orchestrator. Keeps one main entrypoint, dispatches the owned Listing plus competitor items, writes run/item Data Tables, tolerates per-item failures, and generates a professional deterministic report from structured Listing and Review/Q&A results. Final reports render main-image thumbnails, separate target audience from usage scenarios, distinguish A+/video unknown from absent, gate Wiki publish through reportQa, and can publish a visual HTML/MinIO artifact branch."
     },
     {
       "role": "reference",
@@ -55,7 +55,14 @@
       "id": "vh8BqtBJMLgf3OEZ",
       "active": true,
       "webhookPath": "amazon-competitor-analysis-run-query-v2-2fb6c8b01d6a",
-      "notes": "Read-only status endpoint. Input runId; returns run row, item rows, failure reasons, and Wiki links from Data Tables."
+      "notes": "Read-only status endpoint. Input runId; returns run row, item rows, failure reasons, Wiki links, HTML links, and artifact status from Data Tables."
+    },
+    {
+      "role": "component",
+      "name": "[子工作流] Publish Amazon competitor HTML report",
+      "id": "bgSmA8Iog0iTVePj",
+      "active": true,
+      "notes": "Downloads selected main/product/A+ images, uploads them to MinIO, generates responsive latest and immutable run HTML, shared CSS, manifest.json, and report-data.json, and returns artifact URLs/status. Image download failures use placeholder SVGs without aborting the report."
     },
     {
       "role": "component",
@@ -175,6 +182,16 @@
     "dryRun": true,
     "publishWiki": false,
     "publishItemWiki": false,
+    "publishHtml": false,
+    "htmlEndpointBaseUrl": "https://data.dinve.com",
+    "htmlS3Bucket": "amazon-reports",
+    "htmlS3Prefix": "amazon/competitor-analysis",
+    "htmlPublicBaseUrl": "https://data.dinve.com/amazon-reports",
+    "htmlShortBaseUrl": "https://data.dinve.com",
+    "htmlUseShortUrl": false,
+    "htmlStyleVersion": "v1",
+    "htmlMaxProductImages": 5,
+    "htmlMaxAplusImages": 4,
     "notifyMattermost": false,
     "wikiPath": "",
     "wikiPathPrefix": "home/areas/ecommerce/amazon/competitor-analysis",
@@ -182,7 +199,7 @@
     "mattermostBaseUrl": ""
   },
   "sideEffectMode": "field",
-  "sideEffectFields": ["publishWiki", "publishItemWiki", "notifyMattermost"],
+  "sideEffectFields": ["publishWiki", "publishItemWiki", "publishHtml", "notifyMattermost"],
   "safeSmokeInput": {
     "publishWiki": true
   },
@@ -194,6 +211,11 @@
     "report",
     "output",
     "wikiLink",
+    "htmlReportUrl",
+    "htmlArchiveUrl",
+    "htmlPublishStatus",
+    "htmlPublishError",
+    "artifacts",
     "runId",
     "mode",
     "accepted",
