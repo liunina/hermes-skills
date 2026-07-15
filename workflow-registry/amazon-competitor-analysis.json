@@ -2,7 +2,7 @@
   "id": "amazon-competitor-analysis",
   "manifestType": "business-skill",
   "name": "Amazon Competitor Analysis",
-  "description": "Analyze Amazon competitors from ASINs, product links, or messy pasted text. Generate a competitor report and optionally publish to Wiki.js or notify Mattermost when explicitly confirmed.",
+  "description": "Analyze Amazon competitors from ASINs, product links, or messy pasted text. Evaluate image strategy as a conversion funnel: main image attracts clicks, feature images explain selling points, and detail images reduce buyer doubts.",
   "status": "active",
   "category": "amazon",
   "tags": ["amazon", "competitor", "listing", "wiki", "mattermost"],
@@ -18,14 +18,67 @@
   },
   "workflows": [
     {
-      "role": "primary",
+      "role": "reference",
       "name": "[工具] Analyze Amazon competitors",
       "id": "gDbZrWGu5eaE8KAJ"
     },
     {
-      "role": "wrapper",
+      "role": "reference",
       "name": "[MCP入口] Amazon competitor analysis webhook",
       "id": "xF4kGuDGCOOxyiNy"
+    },
+    {
+      "role": "primary",
+      "name": "[工具] Analyze Amazon competitors orchestrator v2",
+      "id": "3WraKTwcR36ddo50",
+      "active": true,
+      "notes": "Validated v3.1 quality orchestrator. Keeps one main entrypoint, dispatches the owned Listing plus competitor items, writes run/item Data Tables, tolerates per-item failures, and generates a professional deterministic report from structured Listing and Review/Q&A results. Final reports render main-image thumbnails, separate target audience from usage scenarios, distinguish A+/video unknown from absent, and gate Wiki publish through reportQa."
+    },
+    {
+      "role": "reference",
+      "name": "[子工作流] Analyze one Amazon competitor item v2",
+      "id": "XyCRbxXvNPitDUcK",
+      "active": true,
+      "notes": "Analyzes one owned or competitor Listing, uses the v3 Decodo/Gemini/final-analysis caches, mines evidence-bounded Review/Q&A themes, stores mainImageUrl/images/aplusImages/assetCompleteness inside analysisJson_object, renders a main image on item child pages, and upserts structured JSON into amazon_competitor_analysis_items keyed by runId / ownAsin / competitorAsin."
+    },
+    {
+      "role": "wrapper",
+      "name": "[MCP入口] Amazon competitor analysis webhook v2",
+      "id": "NTmsqggT3pjv50Qf",
+      "active": true,
+      "webhookPath": "mcp-amazon-competitor-analysis-v2-7f2b8c4e19d4aa65",
+      "notes": "Validated wrapper. Hybrid defaults to async unless mode=sync is explicitly requested, returning runId quickly while v2 continues in the background."
+    },
+    {
+      "role": "reference",
+      "name": "[工具] Query Amazon competitor analysis run v2",
+      "id": "vh8BqtBJMLgf3OEZ",
+      "active": true,
+      "webhookPath": "amazon-competitor-analysis-run-query-v2-2fb6c8b01d6a",
+      "notes": "Read-only status endpoint. Input runId; returns run row, item rows, failure reasons, and Wiki links from Data Tables."
+    },
+    {
+      "role": "component",
+      "name": "Analyze images with Gemini proxy",
+      "id": "EoVUqt6NezV9SkBi",
+      "active": true,
+      "notes": "Per-image Gemini visual analysis with URL normalization, strict JSON, positive/negative cache reuse, and cache observability."
+    },
+    {
+      "role": "reference",
+      "name": "[工具] Query Amazon image analysis cache",
+      "id": "f0E8d5oli7j4bWqP",
+      "active": true,
+      "notes": "Reads reusable Gemini image-analysis cache entries without invoking the model."
+    },
+    {
+      "role": "reference",
+      "name": "[维护] Clean Amazon competitor analysis caches",
+      "id": "No8aaxrkygAUeokt",
+      "active": true,
+      "schedule": "30 3 * * *",
+      "timezone": "Asia/Tokyo",
+      "notes": "Deletes Listing rows after staleUntil, final-analysis rows 48 hours after expiresAt, and image rows 7 days after expiresAt. Invoked calls default to dry-run and require dryRun=false plus confirmDelete=true for real deletion."
     },
     {
       "role": "component",
@@ -40,32 +93,96 @@
   ],
   "transport": {
     "type": "webhook",
-    "url": "https://workflow.dinve.com/webhook/mcp-amazon-competitor-analysis-3aa6d15c5de129f8318f352ca376d18b",
+    "url": "https://workflow.dinve.com/webhook/mcp-amazon-competitor-analysis-v2-7f2b8c4e19d4aa65",
     "urlEnv": "AMAZON_COMPETITOR_WEBHOOK_URL",
     "secretFile": "secrets/amazon-competitor-analysis.webhook-url.txt",
     "timeoutMs": 600000
+  },
+  "legacyTransport": {
+    "type": "webhook",
+    "url": "https://workflow.dinve.com/webhook/mcp-amazon-competitor-analysis-3aa6d15c5de129f8318f352ca376d18b",
+    "status": "rollback-only",
+    "timeoutMs": 600000
+  },
+  "queryTransportV2": {
+    "type": "webhook",
+    "url": "https://workflow.dinve.com/webhook/amazon-competitor-analysis-run-query-v2-2fb6c8b01d6a",
+    "status": "active-read-only",
+    "timeoutMs": 600000
+  },
+  "dataTables": {
+    "runs": {
+      "name": "amazon_competitor_analysis_runs",
+      "id": "jKjaN1jHRjw8dlSG",
+      "uniqueKey": ["runId"]
+    },
+    "items": {
+      "name": "amazon_competitor_analysis_items",
+      "id": "QwOdsDVSgpsRtopU",
+      "uniqueKey": ["runId", "ownAsin", "competitorAsin"]
+    },
+    "listingCache": {
+      "name": "amazon_listing_fetch_cache",
+      "id": "2h4HXnijr001xSBa",
+      "uniqueKey": ["cacheKey"]
+    },
+    "imageCache": {
+      "name": "amazon_image_analysis_cache",
+      "id": "5XfcRQ0AV5D0WMTU",
+      "uniqueKey": ["cacheKey"]
+    },
+    "finalAnalysisCache": {
+      "name": "amazon_item_analysis_cache",
+      "id": "4MZVa2kUAaPXFiV4",
+      "uniqueKey": ["analysisCacheKey"]
+    }
+  },
+  "cachePolicy": {
+    "modes": ["prefer_cache", "refresh", "cache_only", "bypass"],
+    "defaultMode": "prefer_cache",
+    "positiveTtlHours": {
+      "decodoListing": 24,
+      "geminiImage": 720,
+      "finalAnalysis": 24
+    },
+    "staleListingFallback": {
+      "enabled": true,
+      "maxAgeHours": 168
+    },
+    "invalidJsonRetry": "final-analysis-only",
+    "cleanupWorkflowId": "No8aaxrkygAUeokt"
   },
   "defaults": {
     "competitorUrls": [],
     "competitorText": "",
     "ownProductUrl": "",
     "ownAsin": "",
+    "analyzeOwnListing": true,
     "productIdea": "",
     "targetAudience": "",
     "marketplace": "amazon.co.jp",
     "locale": "zh-CN",
-    "focus": "价格带、卖点、图片/A+页面、关键词、切入策略",
-    "maxCompetitors": 1,
+    "focus": "价格带、卖点、主图吸引点击、功能图讲清卖点、细节图降低疑虑、A+页面、关键词、切入策略",
+    "maxCompetitors": 8,
+    "mode": "hybrid",
+    "syncWaitSeconds": 120,
+    "cacheMode": "prefer_cache",
+    "decodoCacheTtlHours": 24,
+    "visualCacheTtlHours": 720,
+    "analysisCacheTtlHours": 24,
+    "allowStaleOnError": true,
+    "staleMaxAgeHours": 168,
     "dryRun": true,
     "publishWiki": false,
+    "publishItemWiki": false,
     "notifyMattermost": false,
     "wikiPath": "",
-    "wikiPathPrefix": "",
+    "wikiPathPrefix": "home/areas/ecommerce/amazon/competitor-analysis",
     "mattermostChannelId": "",
     "mattermostBaseUrl": ""
   },
   "sideEffectMode": "field",
-  "sideEffectFields": ["publishWiki", "notifyMattermost"],
+  "sideEffectFields": ["publishWiki", "publishItemWiki", "notifyMattermost"],
   "safeSmokeInput": {
     "publishWiki": true
   },
@@ -77,11 +194,23 @@
     "report",
     "output",
     "wikiLink",
+    "runId",
+    "mode",
+    "accepted",
+    "status",
+    "queryHint",
     "competitorCount",
+    "successCount",
     "failedCount",
+    "failedItems",
+    "itemResults",
+    "ownBaseline",
+    "itemWikiLinks",
     "publishStatus",
     "notificationStatus",
     "competitorMatrix",
+    "imageStrategyAnalysis",
+    "cache",
     "wikiPublish",
     "mattermostNotify"
   ]

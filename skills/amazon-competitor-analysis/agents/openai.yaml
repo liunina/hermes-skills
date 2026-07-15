@@ -1,0 +1,11 @@
+interface:
+  display_name: "Amazon Competitor Analysis"
+  short_description: "Run the workflow.dinve.com Amazon competitor analysis workflow"
+  default_prompt: "Use $amazon-competitor-analysis with workflow-dinve-skills to analyze Amazon competitors from ASINs or product links."
+  brand_color: "#2563EB"
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "workflow-dinve-skills"
+      description: "MCP manager exposing registered workflow business skills through list/get/run workflow skill tools"

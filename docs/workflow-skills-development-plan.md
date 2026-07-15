@@ -46,7 +46,8 @@ hermes-skills/
 | M4 | 增加 registry 校验、MCP smoke test 和 CI 集成 | Done |
 | M5 | 文档补齐：安装、扩展、安全规则 | Done |
 | M6 | 记录首批组件 workflow manifests：Wiki.js 发布、Mattermost 通知 | Done |
-| M7 | 后续迁移更多 workflow skills | Next |
+| M7 | 建立 n8n workflow 候选池，防止半成品 workflow 直接暴露为 skill | Done |
+| M8 | 逐个完善候选 workflow 并晋升为正式业务 skill | Next |
 
 ## 任务清单
 
@@ -66,6 +67,8 @@ hermes-skills/
 - [x] 增加 `sideEffectMode: "always"`，用于默认有副作用的组件 manifest。
 - [x] 按业务边界调整：删除组件 `SKILL.md`，组件不作为 agent-facing skill 暴露。
 - [x] 重新运行 registry、skill、MCP、安装和敏感信息验证。
+- [x] 盘点 n8n 当前 19 个 workflow，建立 `workflow-registry/candidates.md` 候选清单。
+- [x] 明确候选 workflow 不注册为 MCP 可调用 skill，必须先满足输入/输出/入口/副作用/测试门槛。
 
 ## 当前决策
 
@@ -78,6 +81,8 @@ hermes-skills/
 - 当前 smoke test 不依赖真实 webhook。它通过 side-effect guard 验证 MCP 可以在不调用 n8n 的情况下阻止副作用。
 - 当前 smoke test 会读取各 manifest 的 `safeSmokeInput` 和 `expectedSmokeError`，避免后续新增 workflow skill 时硬编码测试逻辑。
 - 组件类 workflow manifest 使用 `sideEffectMode: "always"`，因为执行本身就是写入或发送动作。
+- 未完善的 workflow 进入 `workflow-registry/candidates.md`，不创建 top-level JSON manifest，不进入 `list_workflow_skills`。
+- 当前优先完善顺序：`amazon-product-image-analysis`、`amazon-product-image-generation`、`amazon-listing-adaptation`、`amazon-review-analysis`、`rakuten-fulfillment-sync-report`。
 
 ## 验证记录
 
@@ -95,6 +100,7 @@ hermes-skills/
 - 2026-07-09：`node mcp/workflow-dinve-skills/install.mjs --client generic --install-dir /tmp/hermes-workflow-dinve-skills-install-test` 重新通过。
 - 2026-07-09：`skills/amazon-competitor-analysis` 通过 Codex skill quick validation；组件 workflow 不再生成 SKILL.md。
 - 2026-07-09：敏感信息扫描通过，未发现 JWT/API key/token；私有 workflow ID 和 webhook URL 允许作为固定配置保存。
+- 2026-07-10：通过 n8n API 只读盘点 19 个 workflow，建立候选清单；正式业务 skill 仍只有 `amazon-competitor-analysis`。
 
 ## 后续更新规则
 

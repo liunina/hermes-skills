@@ -6,6 +6,7 @@ The core rule is:
 
 - Business capability -> `skills/<skill-id>/` + `workflow-registry/<skill-id>.json`
 - Implementation component -> `workflow-registry/components/<component-id>.json`
+- Unfinished or unverified business workflow -> `workflow-registry/candidates.md`
 
 Do not create a standalone skill for every workflow.
 
@@ -29,6 +30,24 @@ Examples:
 - Store a generated report.
 
 If a workflow only supports another workflow, keep it as a component.
+
+If a workflow has business value but is not production-ready as an agent tool, keep it in:
+
+```text
+workflow-registry/candidates.md
+```
+
+Candidate workflows must not be added to `workflow-registry/*.json`, because top-level JSON manifests are treated as callable business skills by the MCP server and validation pipeline.
+
+Use candidates for workflows that still lack one or more of:
+
+- Stable input schema.
+- Stable output schema.
+- `[工具]` main workflow.
+- `[MCP入口]` webhook wrapper.
+- Structured error response.
+- Side-effect guard.
+- Representative test run.
 
 ## 2. n8n Shape
 
@@ -149,6 +168,8 @@ Use manifest `status`:
 draft -> active -> deprecated
 ```
 
+Use `workflow-registry/candidates.md` before `draft` when the n8n workflow is still being evaluated or redesigned. A `draft` manifest should already have a concrete skill id, `SKILL.md`, workflow ids, and an intended transport shape.
+
 Use `draft` while:
 
 - n8n workflow is not active.
@@ -162,6 +183,14 @@ Use `active` only after:
 - MCP smoke test passes.
 - n8n workflow has been tested with representative input.
 - Side-effect guard is verified.
+
+Promotion path:
+
+```text
+candidate note -> draft manifest -> active manifest
+```
+
+Do not skip from an unverified n8n workflow directly to `active`.
 
 Use `deprecated` when a replacement exists but callers may still reference the old skill id.
 
@@ -228,6 +257,7 @@ Before pushing:
 - `docs/evals/<skill-id>.md` exists for every business skill.
 - README or usage docs mention new user-facing skills.
 - Component workflows remain under `workflow-registry/components/`.
+- Candidate workflows have been removed or updated in `workflow-registry/candidates.md` when promoted.
 
 Commit message format:
 
