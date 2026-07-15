@@ -159,6 +159,8 @@ Failed competitors must still be upserted with `status: failed`, `errorType`, an
 - `imageStatus`, `aplusStatus`, and `videoStatus` use `present`, `absent`, `partial`, `unknown_fetch_failed`, or `unknown_not_supported`.
 - `unknown_*` means the workflow cannot prove presence or absence from the current data source. Main reports must say “数据源未返回/待确认” or equivalent, not “没有”.
 - `dataCompletenessScore` and `warnings` may be used to explain evidence limits without adding new Data Table columns.
+- Decodo may return A+ module image URLs inside the generic `description` field instead of a dedicated A+ field. When `description` contains image URLs matching `aplus-media-library-service-media` or `/aplus-media/`, normalize them into `listing.aplusImages`, set `aplusStatus: present`, and include up to 4 of those images in the Gemini visual-analysis input.
+- Decodo's `has_videos` field is video metadata and must be normalized alongside `videos`, `video`, `has_video`, and `hasVideo`. A returned `false` should produce `videoStatus: absent`; only a missing/unsupported source should produce `unknown_not_supported`.
 
 Cache observability must be preserved inside each item's `analysisJson_object.cache`:
 

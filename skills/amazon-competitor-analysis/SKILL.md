@@ -63,6 +63,8 @@ The v2 topology now uses a v3.1 deterministic final-report renderer on top of th
 - Final Wiki reports render product main images directly in the owned baseline and competitor overview using inline image tags. Per-item child pages render a larger main image above the structured JSON.
 - Single-item rows store `listing.mainImageUrl`, `listing.images`, `listing.aplusImages`, and `listing.assetCompleteness` inside `analysisJson_object`; no extra Data Table columns are required.
 - `assetCompleteness` distinguishes `present`, `absent`, `partial`, `unknown_fetch_failed`, and `unknown_not_supported`. Do not rewrite `unknown_*` as “not found”.
+- For Decodo Amazon Listing responses, treat `description` images whose URL contains `aplus-media-library-service-media` or `/aplus-media/` as A+ image evidence when dedicated `aplus` / `a_plus` / `aplus_content` / `enhanced_brand_content` fields are missing. In that case set `aplusStatus: "present"`, preserve the URLs in `listing.aplusImages`, and send up to 4 of them to Gemini.
+- Recognize Decodo's `has_videos` field as video evidence metadata. A returned `false` means video status can be `absent`; a missing video field remains `unknown_not_supported`.
 - The main report is business-readable Chinese. Japanese source text may be quoted as evidence, but should be wrapped in `“”` and not mixed into Chinese explanatory sentences.
 - Target audience and usage scenarios must be separate report subsections.
 - Main reports summarize image/A+/video strategy only. Per-image OCR/Gemini details stay in child pages and Data Table JSON.
