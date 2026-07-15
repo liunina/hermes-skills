@@ -151,6 +151,8 @@ img { max-width: 100%; }
   background: transparent;
   mix-blend-mode: multiply;
   filter: drop-shadow(0 14px 20px rgba(13,32,54,.2));
+  -webkit-mask-image: radial-gradient(ellipse 68% 70% at 50% 50%, #000 52%, rgba(0,0,0,.96) 66%, transparent 86%);
+  mask-image: radial-gradient(ellipse 68% 70% at 50% 50%, #000 52%, rgba(0,0,0,.96) 66%, transparent 86%);
 }
 .hero-product-label {
   position: absolute;
