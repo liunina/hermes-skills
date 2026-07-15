@@ -93,8 +93,11 @@ const config = {
   archiveHtmlKey: `${archiveBaseKey}/index.html`,
   manifestKey: `${archiveBaseKey}/manifest.json`,
   reportDataKey: `${archiveBaseKey}/report-data.json`,
-  htmlReportUrl: shortUrl(`${latestBaseKey}/`),
-  htmlArchiveUrl: shortUrl(`${archiveBaseKey}/`),
+  // Native S3/MinIO object URLs do not resolve a directory to index.html.
+  // A reverse proxy may intentionally provide directory-index behavior for
+  // the short URL, but the standard bucket URL must target the real object.
+  htmlReportUrl: useShortUrl ? `${shortBaseUrl}/${latestBaseKey}/` : objectUrl(`${latestBaseKey}/index.html`),
+  htmlArchiveUrl: useShortUrl ? `${shortBaseUrl}/${archiveBaseKey}/` : objectUrl(`${archiveBaseKey}/index.html`),
   cssUrl: objectUrl(cssKey),
   maxProductImages,
   maxAplusImages,
