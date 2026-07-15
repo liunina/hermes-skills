@@ -110,7 +110,7 @@ Read-only query endpoint:
   "htmlS3Prefix": "amazon/competitor-analysis",
   "htmlPublicBaseUrl": "https://data.dinve.com/amazon-reports",
   "htmlShortBaseUrl": "https://data.dinve.com",
-  "htmlUseShortUrl": false,
+  "htmlUseShortUrl": true,
   "htmlStyleVersion": "v1",
   "htmlMaxProductImages": 5,
   "htmlMaxAplusImages": 4,
@@ -150,7 +150,7 @@ Read-only query endpoint:
 - `publishHtml`: Side effect. Requires `confirmSideEffects: true`. When the user asks to publish the final Wiki report, callers should normally set both `publishWiki: true` and `publishHtml: true` unless the user opts out of HTML.
 - `htmlS3Prefix`: Default `amazon/competitor-analysis`; trim leading/trailing slashes and keep other Amazon business artifacts under separate prefixes.
 - `htmlPublicBaseUrl`: Default `https://data.dinve.com/amazon-reports`, including the bucket name required by the current MinIO endpoint.
-- `htmlUseShortUrl`: Default `false`. Set true only after the reverse proxy route is proven to serve the bucket-backed path.
+- `htmlUseShortUrl`: Default `true` after the production reverse proxy was verified on 2026-07-15. Set false only when diagnosing the native bucket-backed object URL.
 - `htmlMaxProductImages` / `htmlMaxAplusImages`: Per-ASIN report image limits, bounded to 0–8. Defaults are 5 product images and 4 A+ images, plus one main image.
 - `notifyMattermost`: Side effect. Requires `confirmSideEffects: true`.
 - `wikiPathPrefix`: v2 default is `home/areas/ecommerce/amazon/competitor-analysis`.

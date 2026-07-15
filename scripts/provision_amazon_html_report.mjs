@@ -165,6 +165,10 @@ function patchOrchestrator(workflow, publisherId) {
     "const mode = clean(payload.mode) || 'hybrid'; const startedAt = new Date().toISOString(); const dryRun = bool(payload.dryRun, true); const publishWiki = bool(payload.publishWiki, false) && !dryRun; const publishItemWiki = bool(payload.publishItemWiki, publishWiki);\nconst publishHtml = bool(payload.publishHtml, publishWiki) && !dryRun; const htmlEndpointBaseUrl = (clean(payload.htmlEndpointBaseUrl) || 'https://data.dinve.com').replace(/\\/+$/, ''); const htmlS3Bucket = clean(payload.htmlS3Bucket) || 'amazon-reports'; const htmlS3Prefix = (clean(payload.htmlS3Prefix) || 'amazon/competitor-analysis').replace(/^\\/+|\\/+$/g, ''); const htmlPublicBaseUrl = (clean(payload.htmlPublicBaseUrl) || (htmlEndpointBaseUrl + '/' + htmlS3Bucket)).replace(/\\/+$/, ''); const htmlShortBaseUrl = (clean(payload.htmlShortBaseUrl) || htmlEndpointBaseUrl).replace(/\\/+$/, ''); const htmlUseShortUrl = bool(payload.htmlUseShortUrl, false); const htmlStyleVersion = clean(payload.htmlStyleVersion) || 'v1'; const htmlMaxProductImages = Math.max(0, Math.min(8, Number(payload.htmlMaxProductImages ?? 5))); const htmlMaxAplusImages = Math.max(0, Math.min(8, Number(payload.htmlMaxAplusImages ?? 4)));"
   );
   normalize.parameters.jsCode = normalize.parameters.jsCode.replace(
+    /bool\(payload\.htmlUseShortUrl,\s*false\)/g,
+    'bool(payload.htmlUseShortUrl, true)'
+  );
+  normalize.parameters.jsCode = normalize.parameters.jsCode.replace(
     'return [{ json: { ...payload, runId, ownAsin, ownProductUrl, marketplace, locale, mode, dryRun, publishWiki, publishItemWiki, analyzeOwnListing, wikiPathPrefix: prefix, finalWikiPath, competitorCount: competitorTasks.length, expectedItemCount: tasks.length, tasks, runRow } }];',
     'return [{ json: { ...payload, runId, ownAsin, ownProductUrl, marketplace, locale, mode, dryRun, publishWiki, publishItemWiki, publishHtml, htmlEndpointBaseUrl, htmlS3Bucket, htmlS3Prefix, htmlPublicBaseUrl, htmlShortBaseUrl, htmlUseShortUrl, htmlStyleVersion, htmlMaxProductImages, htmlMaxAplusImages, analyzeOwnListing, wikiPathPrefix: prefix, finalWikiPath, competitorCount: competitorTasks.length, expectedItemCount: tasks.length, tasks, runRow } }];'
   );
@@ -231,6 +235,10 @@ function patchWrapper(workflow) {
       "publishWiki: bool(body.publishWiki, false), publishItemWiki: bool(body.publishItemWiki, bool(body.publishWiki, false)), publishHtml: bool(body.publishHtml, bool(body.publishWiki, false)), htmlEndpointBaseUrl: (clean(body.htmlEndpointBaseUrl) || 'https://data.dinve.com').replace(/\\/+$/, ''), htmlS3Bucket: clean(body.htmlS3Bucket) || 'amazon-reports', htmlS3Prefix: (clean(body.htmlS3Prefix) || 'amazon/competitor-analysis').replace(/^\\/+|\\/+$/g, ''), htmlPublicBaseUrl: clean(body.htmlPublicBaseUrl) || 'https://data.dinve.com/amazon-reports', htmlShortBaseUrl: clean(body.htmlShortBaseUrl) || 'https://data.dinve.com', htmlUseShortUrl: bool(body.htmlUseShortUrl, false), htmlStyleVersion: clean(body.htmlStyleVersion) || 'v1', htmlMaxProductImages: Math.max(0, Math.min(8, Math.floor(num(body.htmlMaxProductImages, 5)))), htmlMaxAplusImages: Math.max(0, Math.min(8, Math.floor(num(body.htmlMaxAplusImages, 4)))), analyzeOwnListing:"
     );
   }
+  validate.parameters.jsCode = validate.parameters.jsCode.replace(
+    /bool\(body\.htmlUseShortUrl,\s*false\)/g,
+    'bool(body.htmlUseShortUrl, true)'
+  );
   return w;
 }
 

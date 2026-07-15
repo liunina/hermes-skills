@@ -188,7 +188,7 @@
     "htmlS3Prefix": "amazon/competitor-analysis",
     "htmlPublicBaseUrl": "https://data.dinve.com/amazon-reports",
     "htmlShortBaseUrl": "https://data.dinve.com",
-    "htmlUseShortUrl": false,
+    "htmlUseShortUrl": true,
     "htmlStyleVersion": "v1",
     "htmlMaxProductImages": 5,
     "htmlMaxAplusImages": 4,

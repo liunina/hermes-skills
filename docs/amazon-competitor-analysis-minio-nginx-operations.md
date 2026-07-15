@@ -24,7 +24,7 @@
 | 业务前缀 | `amazon/competitor-analysis` |
 | n8n Credential 名称 | `MinIO S3 - Amazon Reports` |
 | n8n Credential ID | `Ssmp3PXE3qSUYB6m` |
-| 短链接开关默认值 | `htmlUseShortUrl: false` |
+| 短链接开关默认值 | `htmlUseShortUrl: true`（MinIO/Nginx 于 2026-07-15 验收后启用） |
 
 Credential ID 不是密钥，可以保存在工作流定义中。Access Key 和 Secret Key 必须继续保存在 n8n Credential 系统中，不得写入工作流 JSON、Git 仓库或本文档。
 
@@ -68,7 +68,7 @@ https://data.dinve.com/amazon/competitor-analysis/{ownAsin}/
 https://data.dinve.com/amazon/competitor-analysis/{ownAsin}/runs/{runId}/
 ```
 
-截至 2026-07-15，标准对象 URL 和短 URL 均返回 `HTTP 403 Forbidden`。MinIO 上传流程已经成功，当前阻塞点是匿名读取权限和短路径反向代理。
+在运维变更前，标准对象 URL 和短 URL 均返回 `HTTP 403 Forbidden`。2026-07-15 完成运维配置后，标准 HTML、短 URL、归档 URL、CSS 和实际报告图片均已验证返回 `200`；`manifest.json` 和 `report-data.json` 保持匿名 `403`。
 
 ## 3. 推荐网络架构
 
@@ -498,7 +498,7 @@ htmlReportUrl = https://data.dinve.com/amazon/competitor-analysis/{ownAsin}/
 htmlArchiveUrl = https://data.dinve.com/amazon/competitor-analysis/{ownAsin}/runs/{runId}/
 ```
 
-注意：在 Nginx 尚未完成并通过验证前，必须保持：
+如果在其他环境部署且 Nginx 尚未完成验证，应显式覆盖为：
 
 ```json
 {
@@ -699,4 +699,3 @@ sudo systemctl reload nginx
 - [MinIO `mc anonymous set-json`](https://docs.min.io/community/minio-object-store/reference/minio-mc/mc-anonymous-set-json.html)
 - [Nginx `proxy_pass`](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_pass)
 - [Nginx rewrite module](https://nginx.org/en/docs/http/ngx_http_rewrite_module.html)
-

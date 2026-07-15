@@ -66,7 +66,7 @@ The production orchestrator can publish a responsive visual HTML report in addit
 - Store immutable run artifacts under `amazon/competitor-analysis/{ownAsin}/runs/{runId}/`, including `index.html`, `manifest.json`, `report-data.json`, and cached Listing/A+ images.
 - Store shared CSS at `amazon/competitor-analysis/_assets/css/report-v1.css`.
 - Use bucket `amazon-reports` and the standard public base URL `https://data.dinve.com/amazon-reports` by default.
-- Keep `htmlUseShortUrl: false` unless a reverse proxy maps `/amazon/competitor-analysis/*` to `/amazon-reports/amazon/competitor-analysis/*`.
+- Default `htmlUseShortUrl: true` because the production reverse proxy now maps `/amazon/competitor-analysis/*` to `/amazon-reports/amazon/competitor-analysis/*`. Callers may explicitly set it to false when diagnosing the native bucket URL.
 - MinIO must grant anonymous read-only access to the `amazon/competitor-analysis/` object prefix, or an authenticated/reverse-proxy delivery layer must serve it. Never grant anonymous write access.
 - Image download failures create visible placeholder SVGs and do not abort the report; artifact upload failures return `partial_success` or `failed` with per-object reasons.
 - The query workflow returns `htmlReportUrl`, `htmlArchiveUrl`, `htmlPublishStatus`, `htmlPublishError`, and `artifacts` for completed runs.
