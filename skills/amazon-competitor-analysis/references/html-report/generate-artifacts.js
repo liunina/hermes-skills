@@ -501,7 +501,10 @@ const heroOwnImageHtml = ownEntity?.mainImageUrl
 // CSS is published as a shared asset and browsers may retain the previous
 // response for the same URL. Tie the stylesheet URL to this run so a newly
 // generated report always picks up the current visual system.
-const cssVersion = encodeURIComponent(clean(config.runId || generatedAt) || 'latest');
+const cssFingerprint = typeof REPORT_CSS === 'string'
+  ? [...REPORT_CSS].reduce((hash, character) => Math.imul(hash ^ character.charCodeAt(0), 16777619), 2166136261).toString(16)
+  : 'latest';
+const cssVersion = encodeURIComponent(`${clean(config.runId || generatedAt) || 'latest'}-${cssFingerprint}`);
 const cssHref = config.cssUrl ? `${config.cssUrl}${config.cssUrl.includes('?') ? '&' : '?'}v=${cssVersion}` : '';
 
 const legacyHtml = `<!doctype html>
