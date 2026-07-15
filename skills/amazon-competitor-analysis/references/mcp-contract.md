@@ -68,7 +68,8 @@ MinIO object convention:
 - Run snapshot: `amazon/competitor-analysis/{ownAsin}/runs/{runId}/index.html`.
 - Run metadata: `amazon/competitor-analysis/{ownAsin}/runs/{runId}/manifest.json` and `report-data.json`.
 - Cached report images: `amazon/competitor-analysis/{ownAsin}/runs/{runId}/assets/images/`.
-- Shared CSS: `amazon/competitor-analysis/_assets/css/report-v1.css`.
+- Shared v1 CSS: `amazon/competitor-analysis/_assets/css/report-v1.css`.
+- Shared v2 assets: `amazon/competitor-analysis/_assets/report-v2/css/report-v2.css`, `js/report-v2.js`, `icons/report-icons.svg`, and Inter font files.
 - Standard URL base: `https://data.dinve.com/amazon-reports`. The shorter `https://data.dinve.com/amazon/competitor-analysis/...` form is valid only after a reverse proxy hides the bucket name.
 - Object upload success does not make a private bucket public. Delivery requires anonymous read-only access for the object prefix or an authenticated/reverse-proxy layer; never allow anonymous writes.
 
@@ -254,6 +255,7 @@ Quality rules:
 - `htmlPublishStatus`: `disabled`, `success`, `partial_success`, or `failed`.
 - `htmlPublishError`: Aggregated per-artifact upload failure reason.
 - `artifacts`: CSS/HTML/JSON object list with S3 keys, public URLs, hashes, statuses, and error messages.
+- `htmlStyleVersion`: `v1` for the legacy report or `v2` for the dashboard/evidence-wall report. v2 keeps all CSS, JavaScript, icons, and fonts in the MinIO asset prefix.
 - `runId`: v2 run identifier for polling, dedupe, and troubleshooting.
 - `accepted`: For async v2 calls, `true` means the run was accepted and continues in the background.
 - `queryHint`: For async v2 calls, includes the `runId` to poll through the query workflow.
@@ -267,7 +269,7 @@ Quality rules:
 - `publishStatus`: Wiki publishing status.
 - `notificationStatus`: Mattermost notification status.
 - `competitorMatrix`: Structured comparison data.
-- `imageStrategyAnalysis`: Image-strategy evidence, Gemini per-image visual status, cache-hit/request counts, failed-image list, and evidence limitations.
+- `imageStrategyAnalysis`: Image-strategy evidence, Gemini per-image visual status, cache-hit/request counts, failed-image list, and evidence limitations. The v2 HTML report additionally exposes this data as the “图片与 A+ 证据墙”, including image-level observations, conversion opportunities, risks, and scores; missing/failed Gemini results remain explicitly marked as unavailable evidence.
 - `reportQa`: Final-report QA result with `passed`, `blockingIssues`, `warnings`, `checkedAt`, and `version`.
 - `wikiPublish`: Raw Wiki component result.
 - `mattermostNotify`: Raw Mattermost component result.

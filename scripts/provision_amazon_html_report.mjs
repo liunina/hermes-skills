@@ -19,15 +19,21 @@ if (!API_KEY) throw new Error('N8N_API_KEY is required.');
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const referenceDir = path.resolve(here, '../skills/amazon-competitor-analysis/references/html-report');
-const readReference = (name) => readFile(path.join(referenceDir, name), 'utf8');
-const [prepareImagesCode, buildBinariesCode, generateArtifactsSource, returnCode, css] = await Promise.all([
+const readReference = (name, encoding = 'utf8') => readFile(path.join(referenceDir, name), encoding);
+const [prepareImagesCode, buildBinariesCode, generateArtifactsSource, returnCode, cssV1, cssV2, jsV2, iconsV2, font400, font600, font700] = await Promise.all([
   readReference('prepare-image-tasks.js'),
   readReference('build-image-binaries.js'),
   readReference('generate-artifacts.js'),
   readReference('return-publish-result.js'),
   readReference('report-v1.css'),
+  readReference('report-v2.css'),
+  readReference('assets/js/report-v2.js'),
+  readReference('assets/icons/report-icons.svg'),
+  readReference('assets/fonts/inter-latin-400.woff2', 'base64'),
+  readReference('assets/fonts/inter-latin-600.woff2', 'base64'),
+  readReference('assets/fonts/inter-latin-700.woff2', 'base64'),
 ]);
-const generateArtifactsCode = `const REPORT_CSS = ${JSON.stringify(css)};\n${generateArtifactsSource}`;
+const generateArtifactsCode = `const REPORT_CSS_V1 = ${JSON.stringify(cssV1)};\nconst REPORT_CSS_V2 = ${JSON.stringify(cssV2)};\nconst REPORT_JS = ${JSON.stringify(jsV2)};\nconst REPORT_ICONS = ${JSON.stringify(iconsV2)};\nconst REPORT_FONTS = [${JSON.stringify(font400)}, ${JSON.stringify(font600)}, ${JSON.stringify(font700)}];\n${generateArtifactsSource}`;
 
 async function api(pathname, { method = 'GET', body } = {}) {
   const response = await fetch(`${BASE_URL}/api/v1${pathname}`, {
@@ -159,15 +165,13 @@ function patchOrchestrator(workflow, publisherId) {
   ]) addInput(trigger, name, type);
 
   const normalize = nodeByName(w, 'Normalize batch input');
-  normalize.parameters.jsCode = insertOnce(
-    normalize.parameters.jsCode,
-    "const mode = clean(payload.mode) || 'hybrid'; const startedAt = new Date().toISOString(); const dryRun = bool(payload.dryRun, true); const publishWiki = bool(payload.publishWiki, false) && !dryRun; const publishItemWiki = bool(payload.publishItemWiki, publishWiki);",
-    "const mode = clean(payload.mode) || 'hybrid'; const startedAt = new Date().toISOString(); const dryRun = bool(payload.dryRun, true); const publishWiki = bool(payload.publishWiki, false) && !dryRun; const publishItemWiki = bool(payload.publishItemWiki, publishWiki);\nconst publishHtml = bool(payload.publishHtml, publishWiki) && !dryRun; const htmlEndpointBaseUrl = (clean(payload.htmlEndpointBaseUrl) || 'https://data.dinve.com').replace(/\\/+$/, ''); const htmlS3Bucket = clean(payload.htmlS3Bucket) || 'amazon-reports'; const htmlS3Prefix = (clean(payload.htmlS3Prefix) || 'amazon/competitor-analysis').replace(/^\\/+|\\/+$/g, ''); const htmlPublicBaseUrl = (clean(payload.htmlPublicBaseUrl) || (htmlEndpointBaseUrl + '/' + htmlS3Bucket)).replace(/\\/+$/, ''); const htmlShortBaseUrl = (clean(payload.htmlShortBaseUrl) || htmlEndpointBaseUrl).replace(/\\/+$/, ''); const htmlUseShortUrl = bool(payload.htmlUseShortUrl, false); const htmlStyleVersion = clean(payload.htmlStyleVersion) || 'v1'; const htmlMaxProductImages = Math.max(0, Math.min(8, Number(payload.htmlMaxProductImages ?? 5))); const htmlMaxAplusImages = Math.max(0, Math.min(8, Number(payload.htmlMaxAplusImages ?? 4)));"
-  );
-  normalize.parameters.jsCode = normalize.parameters.jsCode.replace(
-    /bool\(payload\.htmlUseShortUrl,\s*false\)/g,
-    'bool(payload.htmlUseShortUrl, true)'
-  );
+  const baseNormalizeLine = "const mode = clean(payload.mode) || 'hybrid'; const startedAt = new Date().toISOString(); const dryRun = bool(payload.dryRun, true); const publishWiki = bool(payload.publishWiki, false) && !dryRun; const publishItemWiki = bool(payload.publishItemWiki, publishWiki);";
+  const htmlDeclaration = "const publishHtml = bool(payload.publishHtml, publishWiki) && !dryRun; const htmlEndpointBaseUrl = (clean(payload.htmlEndpointBaseUrl) || 'https://data.dinve.com').replace(/\\/+$/, ''); const htmlS3Bucket = clean(payload.htmlS3Bucket) || 'amazon-reports'; const htmlS3Prefix = (clean(payload.htmlS3Prefix) || 'amazon/competitor-analysis').replace(/^\\/+|\\/+$/g, ''); const htmlPublicBaseUrl = (clean(payload.htmlPublicBaseUrl) || (htmlEndpointBaseUrl + '/' + htmlS3Bucket)).replace(/\\/+$/, ''); const htmlShortBaseUrl = (clean(payload.htmlShortBaseUrl) || htmlEndpointBaseUrl).replace(/\\/+$/, ''); const htmlUseShortUrl = bool(payload.htmlUseShortUrl, true); const htmlStyleVersion = clean(payload.htmlStyleVersion) || 'v1'; const htmlMaxProductImages = Math.max(0, Math.min(8, Number(payload.htmlMaxProductImages ?? 5))); const htmlMaxAplusImages = Math.max(0, Math.min(8, Number(payload.htmlMaxAplusImages ?? 4)));";
+  // Keep this patch idempotent. Older provisioning runs could append the HTML
+  // declaration block repeatedly after normalizing htmlUseShortUrl.
+  normalize.parameters.jsCode = normalize.parameters.jsCode
+    .replace(/\nconst publishHtml = bool\(payload\.publishHtml[\s\S]*?htmlMaxAplusImages = Math\.max\(0, Math\.min\(8, Number\(payload\.htmlMaxAplusImages \?\? 4\)\)\);/g, '')
+    .replace(baseNormalizeLine, baseNormalizeLine + '\n' + htmlDeclaration);
   normalize.parameters.jsCode = normalize.parameters.jsCode.replace(
     'return [{ json: { ...payload, runId, ownAsin, ownProductUrl, marketplace, locale, mode, dryRun, publishWiki, publishItemWiki, analyzeOwnListing, wikiPathPrefix: prefix, finalWikiPath, competitorCount: competitorTasks.length, expectedItemCount: tasks.length, tasks, runRow } }];',
     'return [{ json: { ...payload, runId, ownAsin, ownProductUrl, marketplace, locale, mode, dryRun, publishWiki, publishItemWiki, publishHtml, htmlEndpointBaseUrl, htmlS3Bucket, htmlS3Prefix, htmlPublicBaseUrl, htmlShortBaseUrl, htmlUseShortUrl, htmlStyleVersion, htmlMaxProductImages, htmlMaxAplusImages, analyzeOwnListing, wikiPathPrefix: prefix, finalWikiPath, competitorCount: competitorTasks.length, expectedItemCount: tasks.length, tasks, runRow } }];'

@@ -3,7 +3,7 @@ name: amazon-competitor-analysis
 description: Analyze Amazon competitors through a registered n8n workflow skill. Use when the user asks to compare Amazon ASINs, product links, market positioning, price bands, review patterns, listing opportunities, image strategy, keywords, A+ page gaps, or publish a competitor report to Wiki.js and optionally notify Mattermost.
 metadata:
   hermes:
-    version: 0.4.0
+    version: 0.5.0
     author: liunina
     tags: [amazon, competitor, listing, ecommerce, n8n, workflow]
     category: ecommerce
@@ -64,7 +64,8 @@ The production orchestrator can publish a responsive visual HTML report in addit
 - Enable it with `publishHtml: true`; keep it false for dry-runs and read-only analysis.
 - Store the latest report at `amazon/competitor-analysis/{ownAsin}/index.html`.
 - Store immutable run artifacts under `amazon/competitor-analysis/{ownAsin}/runs/{runId}/`, including `index.html`, `manifest.json`, `report-data.json`, and cached Listing/A+ images.
-- Store shared CSS at `amazon/competitor-analysis/_assets/css/report-v1.css`.
+- Store shared v1 CSS at `amazon/competitor-analysis/_assets/css/report-v1.css`.
+- Store v2 local assets under `amazon/competitor-analysis/_assets/report-v2/`: `css/report-v2.css`, `js/report-v2.js`, `icons/report-icons.svg`, and the Inter font files. The v2 report references these MinIO assets instead of inline third-party resources.
 - Use bucket `amazon-reports` and the standard public base URL `https://data.dinve.com/amazon-reports` by default.
 - Default `htmlUseShortUrl: true` because the production reverse proxy now maps `/amazon/competitor-analysis/*` to `/amazon-reports/amazon/competitor-analysis/*`. Callers may explicitly set it to false when diagnosing the native bucket URL.
 - MinIO must grant anonymous read-only access to the `amazon/competitor-analysis/` object prefix, or an authenticated/reverse-proxy delivery layer must serve it. Never grant anonymous write access.
@@ -82,7 +83,8 @@ The v2 topology now uses a v3.1 deterministic final-report renderer on top of th
 - Recognize Decodo's `has_videos` field as video evidence metadata. A returned `false` means video status can be `absent`; a missing video field remains `unknown_not_supported`.
 - The main report is business-readable Chinese. Japanese source text may be quoted as evidence, but should be wrapped in `“”` and not mixed into Chinese explanatory sentences.
 - Target audience and usage scenarios must be separate report subsections.
-- Main reports summarize image/A+/video strategy only. Per-image OCR/Gemini details stay in child pages and Data Table JSON.
+- The v2 HTML report includes an “图片与 A+ 证据墙”: every ASIN shows actual product/A+ images, visual-analysis status, cache-hit/failed counts, aggregated observations, conversion opportunities, risks, and an expandable per-image Gemini analysis with core message, visible claims/evidence, strengths, opportunities, risks, and clarity/conversion scores. If Gemini has no usable result, the UI must show the evidence limitation rather than fabricate advice.
+- Main Wiki reports may summarize image/A+/video strategy; per-image OCR/Gemini details remain in child pages and Data Table JSON, while the v2 HTML evidence wall renders the structured visual fields for decision-making.
 - Title suggestions must mention the Japan Amazon 75-character constraint and flag over-length candidates.
 - Final Wiki publishing is gated by `reportQa.passed`; dry-runs and QA-blocked reports must not publish.
 - The renderer safely rewrites unknown-sensitive phrases such as “无视频证据” into “当前抓取未返回视频证据” when A+/video status is unknown.

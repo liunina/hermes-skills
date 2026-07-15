@@ -73,7 +73,15 @@ const maxProductImages = bounded(input.maxProductImages, 5, 0, 8);
 const maxAplusImages = bounded(input.maxAplusImages, 4, 0, 8);
 const archiveBaseKey = `${prefix}/${ownAsin}/runs/${runId}`;
 const latestBaseKey = `${prefix}/${ownAsin}`;
-const cssKey = `${prefix}/_assets/css/report-${styleVersion}.css`;
+const assetPrefix = styleVersion === 'v2' ? `${prefix}/_assets/report-v2` : `${prefix}/_assets`;
+const cssKey = styleVersion === 'v2' ? `${assetPrefix}/css/report-v2.css` : `${assetPrefix}/css/report-${styleVersion}.css`;
+const jsKey = styleVersion === 'v2' ? `${assetPrefix}/js/report-v2.js` : '';
+const iconKey = styleVersion === 'v2' ? `${assetPrefix}/icons/report-icons.svg` : '';
+const fontKeys = styleVersion === 'v2' ? [
+  `${assetPrefix}/fonts/inter-latin-400.woff2`,
+  `${assetPrefix}/fonts/inter-latin-600.woff2`,
+  `${assetPrefix}/fonts/inter-latin-700.woff2`,
+] : [];
 const objectUrl = (key) => `${publicBaseUrl}/${trimBoth(key)}`;
 const shortUrl = (key) => useShortUrl ? `${shortBaseUrl}/${trimBoth(key)}` : objectUrl(key);
 const config = {
@@ -89,6 +97,10 @@ const config = {
   archiveBaseKey,
   latestBaseKey,
   cssKey,
+  jsKey,
+  iconKey,
+  fontKeys,
+  assetPrefix,
   latestHtmlKey: `${latestBaseKey}/index.html`,
   archiveHtmlKey: `${archiveBaseKey}/index.html`,
   manifestKey: `${archiveBaseKey}/manifest.json`,
@@ -99,6 +111,8 @@ const config = {
   htmlReportUrl: useShortUrl ? `${shortBaseUrl}/${latestBaseKey}/` : objectUrl(`${latestBaseKey}/index.html`),
   htmlArchiveUrl: useShortUrl ? `${shortBaseUrl}/${archiveBaseKey}/` : objectUrl(`${archiveBaseKey}/index.html`),
   cssUrl: objectUrl(cssKey),
+  jsUrl: jsKey ? objectUrl(jsKey) : '',
+  iconUrl: iconKey ? objectUrl(iconKey) : '',
   maxProductImages,
   maxAplusImages,
 };
