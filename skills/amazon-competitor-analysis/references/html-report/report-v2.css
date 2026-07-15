@@ -188,18 +188,23 @@ img { max-width: 100%; }
 .hero-title-separator { color: rgba(255,255,255,.72); font-family: "Report Inter", sans-serif; font-size: .72em; font-weight: 500; }
 .hero-title-label { color: rgba(255,255,255,.82); font-family: Georgia, "Noto Serif SC", serif; font-size: .54em; font-weight: 500; letter-spacing: -.01em; }
 .hero-subtitle { max-width: 920px; margin: 20px 0 0; color: rgba(255,255,255,.76); font-size: 16px; }
-.hero-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
+.hero-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 34px; color: rgba(255,255,255,.56); }
 .hero-meta span, .hero-meta a {
   display: inline-flex;
   align-items: center;
-  min-height: 34px;
-  padding: 6px 12px;
-  color: rgba(255,255,255,.88);
-  border: 1px solid rgba(255,255,255,.2);
-  border-radius: 999px;
-  background: rgba(255,255,255,.08);
-  font-size: 12px;
+  min-height: 0;
+  padding: 0;
+  color: inherit;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
 }
+.hero-meta a { color: rgba(255,255,255,.78); text-decoration: underline; text-decoration-color: rgba(255,255,255,.35); text-underline-offset: 3px; }
+.hero-meta a:hover { color: #fff; text-decoration-color: rgba(255,255,255,.8); }
 
 .quick-nav {
   position: sticky;
