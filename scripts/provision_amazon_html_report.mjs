@@ -255,6 +255,10 @@ function patchWrapper(workflow) {
     /bool\(body\.htmlUseShortUrl,\s*false\)/g,
     'bool(body.htmlUseShortUrl, true)'
   );
+  validate.parameters.jsCode = validate.parameters.jsCode.replace(
+    /htmlStyleVersion:\s*clean\(body\.htmlStyleVersion\)\s*\|\|\s*'v1'/g,
+    "htmlStyleVersion: clean(body.htmlStyleVersion) || 'v2'"
+  );
   return w;
 }
 
