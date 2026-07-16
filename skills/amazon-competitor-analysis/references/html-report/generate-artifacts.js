@@ -366,6 +366,36 @@ const allRisks = uniqueText(...normalizedEntities.map((entity) => entity.risks))
 const allKeywords = uniqueText(...normalizedEntities.map((entity) => entity.keywords)).slice(0, 24);
 const allPainPoints = uniqueText(...normalizedEntities.map((entity) => entity.painPoints)).slice(0, 10);
 const listHtml = (values, emptyText) => values.length ? `<ul>${values.map((value) => `<li>${escapeHtml(value)}</li>`).join('')}</ul>` : `<div class="empty">${escapeHtml(emptyText)}</div>`;
+const charLength = (value) => Array.from(clean(value)).length;
+const normalizeTerm = (value) => clean(value).toLowerCase().replace(/[\s　]+/g, ' ').trim();
+const tokenizeListingText = (value) => clean(value)
+  .replace(/[\[\]【】()（）「」『』|｜/／・,，、。:：;；!！?？+＋~〜#]/g, ' ')
+  .split(/[\s　]+/)
+  .map((term) => clean(term))
+  .filter((term) => term.length >= 2 && term.length <= 28 && !/^B0[A-Z0-9]{8}$/i.test(term) && !/^https?:/i.test(term));
+const topTerms = (values, limit = 10) => {
+  const counts = new Map();
+  for (const value of values) {
+    for (const term of tokenizeListingText(value)) {
+      const key = normalizeTerm(term);
+      if (!key) continue;
+      const previous = counts.get(key) || { term, count: 0 };
+      previous.count += 1;
+      counts.set(key, previous);
+    }
+  }
+  return [...counts.values()].sort((a, b) => b.count - a.count || a.term.localeCompare(b.term, 'ja')).slice(0, limit);
+};
+const keywordTermsFor = (entity) => uniqueText(
+  entity?.keywords,
+  entity?.analysis?.keywords,
+  entity?.analysis?.keywordStrategy,
+  entity?.analysis?.searchTerms,
+  entity?.listing?.keywords,
+).slice(0, 24);
+const chipListHtml = (values, emptyText) => values.length
+  ? `<div class="keyword-chip-list">${values.map((value) => `<span class="keyword-chip">${escapeHtml(value)}</span>`).join('')}</div>`
+  : `<div class="empty compact">${escapeHtml(emptyText)}</div>`;
 
 const priorityRank = { P0: 0, P1: 1, P2: 2, '待确认': 3 };
 const normalizePriority = (value, kind, text) => {
@@ -461,6 +491,43 @@ const actionItems = mergeInsightItems(ownExplicitActions.length ? ownExplicitAct
   ...ownOpportunityItems.slice(0, 6).map((item) => ({ ...item, kind: 'action', action: item.action || item.text, source: `机会 · ${item.source}` })),
   ...ownRiskItems.slice(0, 4).map((item) => ({ ...item, kind: 'action', action: item.action || item.text, source: `风险 · ${item.source}` })),
 ]);
+const actionPriorities = ['P0', 'P1', 'P2', '待确认'];
+const actionPriorityLabels = { P0: '立即处理', P1: '本周期处理', P2: '后续优化', '待确认': '先补证据' };
+const visibleActionItemsByPriority = Object.fromEntries(actionPriorities.map((priority) => [priority, actionItems.filter((item) => item.priority === priority).slice(0, 3)]));
+const visibleActionItemCount = actionPriorities.reduce((sum, priority) => sum + visibleActionItemsByPriority[priority].length, 0);
+const titleRows = normalizedEntities.map((entity) => {
+  const length = charLength(entity.title);
+  const terms = topTerms([entity.title], 5).map((item) => item.term);
+  return {
+    asin: entity.asin,
+    itemRole: entity.itemRole,
+    title: entity.title,
+    length,
+    status: length > 75 ? '超过 75 字符' : length >= 55 ? '接近上限' : '空间可用',
+    terms,
+  };
+});
+const ownTitleRow = titleRows.find((row) => row.itemRole === 'own');
+const competitorTitleRows = titleRows.filter((row) => row.itemRole !== 'own');
+const competitorTitleTerms = topTerms(competitorTitleRows.map((row) => row.title), 12);
+const ownTitleTermSet = new Set(topTerms([ownEntity?.title || ''], 30).map((item) => normalizeTerm(item.term)));
+const titleOpportunityTerms = competitorTitleTerms.filter((item) => !ownTitleTermSet.has(normalizeTerm(item.term))).slice(0, 8).map((item) => `${item.term}${item.count > 1 ? ` ×${item.count}` : ''}`);
+const averageCompetitorTitleLength = competitorTitleRows.length ? Math.round(competitorTitleRows.reduce((sum, row) => sum + row.length, 0) / competitorTitleRows.length) : null;
+const titleAdvice = uniqueText([
+  ownTitleRow?.length > 75 ? '我方标题已超过日本站建议的 75 字符上限，优先压缩重复修饰词与弱相关词。' : '日本 Amazon 标题建议控制在 75 字符内，把核心品类词、关键场景和差异化规格放在前半段。',
+  titleOpportunityTerms.length ? `竞品标题中可借鉴的高频表达：${titleOpportunityTerms.slice(0, 5).join(' / ')}。` : '竞品标题未形成明显高频词，建议以品类核心词 + 场景 + 关键规格建立稳定结构。',
+  '避免把未经证实的功效、绝对化承诺或合规敏感表达堆入标题；这类内容应放到有证据支撑的图片/A+或五点描述中。',
+]).slice(0, 4);
+const ownKeywordTerms = keywordTermsFor(ownEntity);
+const competitorKeywordTerms = uniqueText(...competitorEntities.map((entity) => keywordTermsFor(entity))).slice(0, 40);
+const ownKeywordSet = new Set(ownKeywordTerms.map((term) => normalizeTerm(term)));
+const competitorKeywordHotTerms = topTerms([...competitorEntities.map((entity) => entity.title), ...competitorKeywordTerms], 18).map((item) => ({ ...item, covered: ownKeywordSet.has(normalizeTerm(item.term)) || normalizeTerm(ownEntity?.title || '').includes(normalizeTerm(item.term)) }));
+const keywordOpportunityTerms = competitorKeywordHotTerms.filter((item) => !item.covered).slice(0, 10).map((item) => `${item.term}${item.count > 1 ? ` ×${item.count}` : ''}`);
+const keywordAdvice = uniqueText([
+  ownKeywordTerms.length ? `我方已覆盖 ${ownKeywordTerms.length} 个结构化关键词，建议继续区分标题词、五点词和后台 Search Terms。` : '我方结构化关键词较少，建议先补齐核心品类词、使用场景词、材质/规格词和痛点词。',
+  keywordOpportunityTerms.length ? `可优先补强竞品共现词：${keywordOpportunityTerms.slice(0, 8).join(' / ')}。` : '当前竞品关键词与我方覆盖差距不明显，建议通过 Review 痛点和搜索词报告继续补充长尾词。',
+  '后台 Search Terms 更适合承接同义词、别称、拼写变体和低频长尾词，标题只保留能提升点击与相关性的高确定词。',
+]).slice(0, 4);
 const median = (values) => {
   const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
   if (!sorted.length) return null;
@@ -493,6 +560,14 @@ const wikiPath = clean(source.wikiPath || ri.finalWikiPath);
 const wikiUrl = clean(source.wikiLink) || (wikiPath ? `https://wiki.dinve.com/zh/${wikiPath.replace(/^\/+/, '')}` : '');
 const successfulImages = imageRecords.filter((item) => item.uploadStatus === 'success').length;
 const placeholderImages = imageRecords.filter((item) => item.sourceFetchStatus === 'placeholder').length;
+const scoredEntityCount = normalizedEntities.filter((entity) => scoreValue(entity) !== null).length;
+const decisionMetaItems = [
+  `竞品 ${Number(ri.competitorCount || competitorEntities.length)} 个（成功 ${Number(ri.successCount || 0)} / 失败 ${Number(ri.failedCount || 0)}）`,
+  scoreRank ? `我方综合评分第 ${scoreRank} / ${scoredEntityCount || normalizedEntities.length}` : '我方排名待确认',
+  `我方机会 ${ownOpportunityItems.length} 项 · 风险 ${ownRiskItems.length} 项`,
+  `图片缓存 ${successfulImages} 张 · 占位 ${placeholderImages} 张`,
+  `状态 ${clean(ri.status || source.status || '待核验')}`,
+];
 const reportTitle = clean(source.title) || `Amazon 竞品分析报告 - ${config.ownAsin}`;
 const heroAsin = clean(config.ownAsin || ri.ownAsin) || 'Amazon';
 const heroOwnImageHtml = ownEntity?.mainImageUrl
@@ -655,6 +730,14 @@ const reportDataV2 = {
   opportunityItems: ownOpportunityItems,
   riskItems: ownRiskItems,
   actionItems,
+  visibleActionItemCount,
+  titleKeywordAnalysis: {
+    titleRows,
+    titleOpportunityTerms,
+    keywordOpportunityTerms,
+    ownKeywordTerms,
+    competitorKeywordHotTerms,
+  },
   defaultVisibleAsins,
   categoryScoringModel: ri.categoryScoringModel || source.categoryScoringModel || null,
   dataQuality: ri.dataQuality || source.dataQuality || null,
@@ -669,6 +752,8 @@ const v2ProductCards = normalizedEntities.map((entity) => `
         </div>
       </article>`).join('');
 const v2ComparisonRows = normalizedEntities.map((entity) => `<tr data-asin="${escapeHtml(entity.asin)}" data-price="${entity.priceNumeric ?? ''}" data-rating="${entity.ratingNumeric ?? ''}" data-reviewcountnumeric="${entity.reviewCountNumeric ?? ''}" data-score="${scoreValue(entity) ?? ''}"><td><strong>${entity.itemRole === 'own' ? '我方' : '竞品'}</strong><br>${escapeHtml(entity.asin)}</td><td>${escapeHtml(entity.brand)}</td><td>${escapeHtml(entity.price)}</td><td>${escapeHtml(entity.rating)}</td><td>${escapeHtml(entity.reviewCount)}</td><td>${escapeHtml(scoreLabel(entity))}</td><td>${entity.imageCount}</td><td>${escapeHtml(statusLabel(entity.aplusStatus, entity.aplusCount, 'A+').label)}</td></tr>`).join('');
+const titleAnalysisRowsHtml = titleRows.map((row) => `<tr data-asin="${escapeHtml(row.asin)}"><td><strong>${row.itemRole === 'own' ? '我方' : '竞品'}</strong><br>${escapeHtml(row.asin)}</td><td><span class="title-length ${row.length > 75 ? 'is-risk' : row.length >= 55 ? 'is-warn' : ''}">${row.length} 字符</span><br><small>${escapeHtml(row.status)}</small></td><td>${escapeHtml(row.title)}</td></tr>`).join('');
+const titleKeywordSection = `<section class="section listing-text-section" id="listing-text"><div class="section-head"><div><h2>${icon('filter', '标题与关键词诊断')}</h2><p class="section-note">基于我方 ASIN 与竞品 ASIN 的标题结构、关键词覆盖和可借鉴表达，作为图片/A+素材策略的前置诊断。</p></div></div><div class="listing-text-grid"><article class="text-analysis-card"><div class="text-analysis-head"><div><span class="eyebrow">Title Structure</span><h3>标题分析与改写建议</h3></div><span class="analysis-pill">日本站建议 ≤ 75 字符</span></div><div class="text-stat-row"><span>我方 ${ownTitleRow ? `${ownTitleRow.length} 字符` : '标题待确认'}</span><span>竞品均值 ${averageCompetitorTitleLength ?? '待确认'} 字符</span><span>超长 ${titleRows.filter((row) => row.length > 75).length} 个</span></div>${chipListHtml(titleOpportunityTerms, '暂无明显竞品高频标题词')}<div class="text-advice-list">${titleAdvice.map((item) => `<p>${escapeHtml(item)}</p>`).join('')}</div><details class="text-analysis-details"><summary>查看标题长度与原文</summary><div class="table-wrap compact-table"><table><thead><tr><th>角色 / ASIN</th><th>长度</th><th>标题</th></tr></thead><tbody>${titleAnalysisRowsHtml}</tbody></table></div></details></article><article class="text-analysis-card"><div class="text-analysis-head"><div><span class="eyebrow">Keyword Coverage</span><h3>关键词覆盖与补强建议</h3></div><span class="analysis-pill">标题 / 五点 / 后台分层使用</span></div><div class="keyword-cluster-grid"><div><h4>我方已覆盖</h4>${chipListHtml(ownKeywordTerms.slice(0, 12), '我方关键词待补充')}</div><div><h4>竞品共现词</h4>${chipListHtml(competitorKeywordHotTerms.slice(0, 12).map((item) => `${item.term}${item.count > 1 ? ` ×${item.count}` : ''}`), '暂无竞品共现词')}</div><div><h4>优先补强</h4>${chipListHtml(keywordOpportunityTerms, '暂无明显缺口词')}</div></div><div class="text-advice-list">${keywordAdvice.map((item) => `<p>${escapeHtml(item)}</p>`).join('')}</div></article></div></section>`;
 const v2Gallery = normalizedEntities.map((entity) => {
   const isOwn = entity.itemRole === 'own';
   const figures = entity.images.map((image) => `<figure><img loading="lazy" src="${escapeHtml(image.displayUrl)}" alt="${escapeHtml(entity.asin + ' ' + image.assetRole)}"><figcaption><span class="asset-role">${escapeHtml(image.assetRole === 'aplus' ? 'A+ 图' : image.assetRole === 'main' ? '主图' : '商品图')}</span><span>${image.sourceFetchStatus === 'placeholder' ? '占位图' : 'MinIO 已缓存'}</span></figcaption></figure>`).join('');
@@ -690,11 +775,12 @@ const v2Gallery = normalizedEntities.map((entity) => {
 const v2Html = isV2 ? `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Amazon 竞品分析可视化报告 ${escapeHtml(config.ownAsin)}"><title>${escapeHtml(reportTitle)}</title><link rel="stylesheet" href="${escapeHtml(cssHref)}"></head>
 <body><main class="shell"><header class="hero" id="top"><div class="hero-layout"><div class="hero-copy"><p class="hero-kicker">Amazon Competitor Intelligence · ${escapeHtml(ri.marketplace || 'amazon.co.jp')}</p><h1 class="hero-title"><span class="hero-title-asin">${escapeHtml(heroAsin)}</span><span class="hero-title-separator"> - </span><span class="hero-title-label">Amazon 竞品分析报告</span></h1><p class="hero-subtitle">面向管理层、运营和内容团队的品类竞争决策看板：先看结论，再下钻证据。</p><div class="hero-meta"><span>Run ${escapeHtml(config.runId)}</span><span>生成 ${escapeHtml(generatedAt)}</span>${wikiUrl ? `<a href="${escapeHtml(wikiUrl)}" target="_blank" rel="noopener">Wiki 版本</a>` : ''}</div></div>${heroOwnImageHtml}</div></header>
-<nav class="quick-nav" aria-label="报告导航"><a href="#overview">总览</a><a href="#market">竞争格局</a><a href="#products">商品卡片</a><a href="#matrix">指标表</a><a href="#gallery">视觉证据</a><a href="#insights">机会与风险</a><a href="#full-report">完整报告</a></nav>
-<section class="section" id="overview"><div class="section-head"><div><h2>${icon('chart', '经营决策总览')}</h2><p class="section-note">先看竞争位置、我方 Top 3 机会与风险，再下钻到 Listing、图片和完整证据。</p></div><span class="section-note" data-filtered-count></span></div><div class="kpi-grid"><div class="kpi" data-tone="gold"><div class="kpi-label">竞品数</div><div class="kpi-value">${Number(ri.competitorCount || normalizedEntities.filter((entity) => entity.itemRole !== 'own').length)}</div><div class="kpi-note">成功 ${Number(ri.successCount || 0)} / 失败 ${Number(ri.failedCount || 0)}</div></div><div class="kpi" data-tone="teal"><div class="kpi-label">我方排名</div><div class="kpi-value">${scoreRank ? `第 ${scoreRank} 位` : '待确认'}</div><div class="kpi-note">${normalizedEntities.filter((entity) => scoreValue(entity) !== null).length} 个 ASIN 已评分</div></div><div class="kpi"><div class="kpi-label">我方机会点</div><div class="kpi-value">${ownOpportunityItems.length}</div><div class="kpi-note">P0 ${ownOpportunityItems.filter((item) => item.priority === 'P0').length} · 点击查看 Top 3</div></div><div class="kpi" data-tone="red"><div class="kpi-label">我方风险点</div><div class="kpi-value">${ownRiskItems.length}</div><div class="kpi-note">P0 ${ownRiskItems.filter((item) => item.priority === 'P0').length} · 点击查看 Top 3</div></div><div class="kpi"><div class="kpi-label">已缓存图片</div><div class="kpi-value">${successfulImages}</div><div class="kpi-note">占位图 ${placeholderImages}</div></div></div><div class="decision-band"><div class="decision-card decision-verdict"><span class="eyebrow">管理层结论</span><h3>${escapeHtml(decisionHeadline)}</h3><p>该结论基于当前可验证的价格、评分、评论、素材和我方 Listing 机会/风险数据；待确认字段不会静默当作 0 分。</p><div class="decision-signal-list">${decisionSignals.map((signal) => `<span>${escapeHtml(signal)}</span>`).join('')}</div></div><div class="decision-card decision-quality"><span class="eyebrow">数据质量</span><h3>${escapeHtml(ri.status || '待核验')}</h3><p>抓取失败竞品、视觉分析失败、缓存命中和待确认字段均保留在原始数据与 manifest 中。</p><a class="decision-insight-link" href="#full-report">查看数据完整性与失败原因 →</a></div></div><div class="decision-insights-grid">${insightCardHtml('decision-opportunities', '我方 Top 3 机会点', ownOpportunityItems, 'opportunity', '我方 Listing 暂未返回结构化机会点')}${insightCardHtml('decision-risks', '我方 Top 3 风险点', ownRiskItems, 'risk', '我方 Listing 暂未返回结构化风险点')}</div><div class="decision-actions"><div class="decision-actions-head"><div><span class="eyebrow">执行优先级</span><h3>我方 P0 / P1 / P2 行动计划</h3></div><span class="decision-count">共 ${actionItems.length} 项</span></div><div class="decision-action-grid">${['P0', 'P1', 'P2', '待确认'].map((priority) => `<div class="decision-action-column"><h4><span class="priority-badge priority-${priority === '待确认' ? 'unknown' : priority.toLowerCase()}">${priority}</span>${priority === 'P0' ? '立即处理' : priority === 'P1' ? '本周期处理' : priority === 'P2' ? '后续优化' : '先补证据'}</h4>${actionItems.filter((item) => item.priority === priority).slice(0, 3).map((item) => `<div class="decision-action-item"><strong>${escapeHtml(item.action || item.text)}</strong><span>${escapeHtml(item.source)}</span></div>`).join('') || '<div class="empty">暂无</div>'}</div>`).join('')}</div></div></section>
+<nav class="quick-nav" aria-label="报告导航"><a href="#overview">总览</a><a href="#market">竞争格局</a><a href="#products">商品卡片</a><a href="#matrix">指标表</a><a href="#listing-text">标题关键词</a><a href="#gallery">视觉证据</a><a href="#insights">机会与风险</a><a href="#full-report">完整报告</a></nav>
+<section class="section" id="overview"><div class="section-head"><div><h2>${icon('chart', '经营决策总览')}</h2><p class="section-note">先看竞争位置、我方 Top 3 机会与风险，再下钻到 Listing、图片和完整证据。</p></div><span class="section-note" data-filtered-count></span></div><div class="decision-meta-strip">${decisionMetaItems.map((item) => `<span>${escapeHtml(item)}</span>`).join('')}</div><div class="decision-band"><div class="decision-card decision-verdict"><span class="eyebrow">管理层结论</span><h3>${escapeHtml(decisionHeadline)}</h3><p>该结论基于当前可验证的价格、评分、评论、素材和我方 Listing 机会/风险数据；待确认字段不会静默当作 0 分。</p><div class="decision-signal-list">${decisionSignals.map((signal) => `<span>${escapeHtml(signal)}</span>`).join('')}</div></div><div class="decision-card decision-quality"><span class="eyebrow">数据质量</span><h3>${escapeHtml(ri.status || '待核验')}</h3><p>抓取失败竞品、视觉分析失败、缓存命中和待确认字段均保留在原始数据与 manifest 中。</p><a class="decision-insight-link" href="#full-report">查看数据完整性与失败原因 →</a></div></div><div class="decision-insights-grid">${insightCardHtml('decision-opportunities', '我方 Top 3 机会点', ownOpportunityItems, 'opportunity', '我方 Listing 暂未返回结构化机会点')}${insightCardHtml('decision-risks', '我方 Top 3 风险点', ownRiskItems, 'risk', '我方 Listing 暂未返回结构化风险点')}</div><div class="decision-actions"><div class="decision-actions-head"><div><span class="eyebrow">执行优先级</span><h3>我方 P0 / P1 / P2 行动计划</h3></div><span class="decision-count">共 ${visibleActionItemCount} 项</span></div><div class="decision-action-grid">${actionPriorities.map((priority) => `<div class="decision-action-column"><h4><span class="priority-badge priority-${priority === '待确认' ? 'unknown' : priority.toLowerCase()}">${priority}</span>${actionPriorityLabels[priority]}</h4>${visibleActionItemsByPriority[priority].map((item) => `<div class="decision-action-item"><strong>${escapeHtml(item.action || item.text)}</strong><span>${escapeHtml(item.source)}</span></div>`).join('') || '<div class="empty">暂无</div>'}</div>`).join('')}</div></div></section>
 <section class="section" id="market"><div class="section-head"><div><h2>${icon('filter', '竞争格局与评分')}</h2><p class="section-note">悬停气泡查看价格、评分、评论数和综合评分；点击筛选器即可对比不同组合。</p></div></div><div id="competitor-selector" class="selector-bar"></div><div class="chart-grid"><div class="chart-card"><div class="chart-card-head"><h3>价格 × 评分 × 评论量</h3><span>气泡越大，评论量越高</span></div><div id="market-chart" class="chart"></div></div><div class="chart-card"><div class="chart-card-head"><h3>品类自适应综合评分</h3><span>同一批次使用同一模型</span></div><div id="score-chart" class="chart"></div></div></div></section>
 <section class="section" id="products"><div class="section-head"><div><h2>我方与竞品 Listing 卡片</h2><p class="section-note">点击主图可放大；竞品卡片会跟随上方筛选器显示/隐藏。</p></div></div><div class="product-grid">${v2ProductCards || '<div class="empty">没有可展示的 Listing 结果</div>'}</div></section>
 <section class="section" id="matrix"><div class="section-head"><div><h2>核心指标横向对比</h2><p class="section-note">点击价格、评分、评论数或综合评分表头进行排序。</p></div></div><div class="table-wrap"><table id="comparison-table"><thead><tr><th>角色 / ASIN</th><th>品牌</th><th data-sort-key="price">价格</th><th data-sort-key="rating">评分</th><th data-sort-key="reviewcountnumeric">评论数</th><th data-sort-key="score">综合评分</th><th>图片数</th><th>A+</th></tr></thead><tbody>${v2ComparisonRows}</tbody></table></div></section>
+${titleKeywordSection}
 <section class="section" id="gallery"><div class="section-head"><div><h2>${icon('image', '图片与 A+ 证据墙')}</h2><p class="section-note">商品图与 A+ 图统一缓存到 MinIO，失败会显示占位并保留失败原因。</p></div></div>${v2Gallery}</section>
 <section class="section" id="insights"><div class="section-head"><div><h2>机会、风险与关键词</h2><p class="section-note">核心结论直接展开，详细证据在下方完整报告中按需查看。</p></div></div><div class="insight-grid"><div class="insight-card"><h3>差异化机会</h3>${listHtml(allOpportunities, '暂未返回结构化机会点')}</div><div class="insight-card"><h3>风险与约束</h3>${listHtml(allRisks, '暂未返回结构化风险点')}</div><div class="insight-card"><h3>Review / Q&A 痛点</h3>${listHtml(allPainPoints, '暂未返回可验证痛点')}</div></div><div class="asset-tags" style="margin-top:16px">${allKeywords.map((keyword) => `<span class="tag brand">${escapeHtml(keyword)}</span>`).join('') || '<span class="tag warn">关键词待补充</span>'}</div></section>
 <section class="section" id="full-report"><div class="section-head"><div><h2>完整专业分析报告</h2><p class="section-note">详细证据、逐图分析、原始 Review 等内容默认折叠，保留 Wiki 同源正文。</p></div><a href="#top">返回顶部 ↑</a></div><details><summary>展开完整正文与证据</summary><article class="markdown-body">${markdownHtml || '<div class="empty">最终报告正文未返回</div>'}</article></details></section>
