@@ -98,7 +98,7 @@ function buildPublisherWorkflow(existingId = '') {
       timeout: 45000,
       response: { response: { responseFormat: 'file', outputPropertyName: 'data' } },
     },
-  }, { id: '4e1b9a16-2914-48f7-9f23-c2bda3e8aa04', onError: 'continueRegularOutput' });
+  }, { id: '4e1b9a16-2914-48f7-9f23-c2bda3e8aa04', onError: 'continueRegularOutput', retryOnFail: true, maxTries: 3, waitBetweenTries: 2000 });
   const binaries = node('Build image binaries', 'n8n-nodes-base.code', 2, [-200, 80], { jsCode: buildBinariesCode, mode: 'runOnceForAllItems' }, { id: '4e1b9a16-2914-48f7-9f23-c2bda3e8aa05' });
   const uploadImages = node('Upload images to MinIO', 'n8n-nodes-base.s3', 1, [40, 80], {
     resource: 'file',
@@ -112,6 +112,9 @@ function buildPublisherWorkflow(existingId = '') {
     id: '4e1b9a16-2914-48f7-9f23-c2bda3e8aa06',
     credentials: { s3: { id: S3_CREDENTIAL_ID, name: 'MinIO S3 - Amazon Reports' } },
     onError: 'continueRegularOutput',
+    retryOnFail: true,
+    maxTries: 3,
+    waitBetweenTries: 2000,
   });
   const generate = node('Generate report artifacts', 'n8n-nodes-base.code', 2, [280, 80], { jsCode: generateArtifactsCode, mode: 'runOnceForAllItems' }, { id: '4e1b9a16-2914-48f7-9f23-c2bda3e8aa07' });
   const uploadArtifacts = node('Upload report artifacts to MinIO', 'n8n-nodes-base.s3', 1, [520, 80], {
@@ -126,6 +129,9 @@ function buildPublisherWorkflow(existingId = '') {
     id: '4e1b9a16-2914-48f7-9f23-c2bda3e8aa08',
     credentials: { s3: { id: S3_CREDENTIAL_ID, name: 'MinIO S3 - Amazon Reports' } },
     onError: 'continueRegularOutput',
+    retryOnFail: true,
+    maxTries: 3,
+    waitBetweenTries: 2000,
   });
   const done = node('Return HTML artifact links', 'n8n-nodes-base.code', 2, [760, 80], { jsCode: returnCode, mode: 'runOnceForAllItems' }, { id: '4e1b9a16-2914-48f7-9f23-c2bda3e8aa09' });
   const main = (target) => ({ main: [[{ node: target, type: 'main', index: 0 }]] });
@@ -193,7 +199,7 @@ function patchOrchestrator(workflow, publisherId) {
       options: { waitForSubWorkflow: true },
     }, { id: 'e07ecdc2-e0ea-4096-b02c-0beec58bb103', onError: 'continueRegularOutput' }),
     node('Attach HTML report link', 'n8n-nodes-base.code', 2, [3024, 240], {
-      jsCode: "const base = $('Format final report').first().json || {}; const pub = $input.first().json || {}; const htmlReportUrl = pub.htmlReportUrl || ''; const visualLine = htmlReportUrl ? ('- 可视化 HTML 报告: ' + htmlReportUrl + '\\n') : ''; let markdown = base.markdown || ''; if (visualLine && !markdown.includes('可视化 HTML 报告:')) { const marker = '- QA: ' + (base.reportQa?.passed ? 'passed' : 'blocked') + '\\n'; markdown = markdown.includes(marker) ? markdown.replace(marker, marker + visualLine) : visualLine + '\\n' + markdown; } let rowInput = {}; try { rowInput = JSON.parse(base.row?.inputJson_object || '{}'); } catch {} rowInput.htmlArtifact = pub; const row = { ...(base.row || {}), inputJson_object: JSON.stringify(rowInput) }; return [{ json: { ...base, ...pub, row, markdown, htmlReportUrl, htmlArchiveUrl: pub.htmlArchiveUrl || '', htmlPublishStatus: pub.htmlPublishStatus || (pub.ok ? 'success' : 'failed'), htmlPublishError: pub.htmlPublishError || '' } }];",
+      jsCode: "const base = $('Format final report').first().json || {}; const pub = $input.first().json || {}; const htmlReportUrl = pub.htmlReportUrl || ''; const htmlArchiveUrl = pub.htmlArchiveUrl || ''; const visualLine = htmlReportUrl ? ('- 可视化 HTML 报告: ' + htmlReportUrl + '\\n') : ''; const archiveLine = htmlArchiveUrl ? ('- 本次 HTML 归档: ' + htmlArchiveUrl + '\\n') : ''; let markdown = base.markdown || ''; const insertion = (markdown.includes('可视化 HTML 报告:') ? '' : visualLine) + (markdown.includes('本次 HTML 归档:') ? '' : archiveLine); if (insertion) { const marker = '- QA: ' + (base.reportQa?.passed ? 'passed' : 'blocked') + '\\n'; markdown = markdown.includes(marker) ? markdown.replace(marker, marker + insertion) : insertion + '\\n' + markdown; } let rowInput = {}; try { rowInput = JSON.parse(base.row?.inputJson_object || '{}'); } catch {} rowInput.htmlArtifact = pub; const row = { ...(base.row || {}), inputJson_object: JSON.stringify(rowInput) }; return [{ json: { ...base, ...pub, row, markdown, htmlReportUrl, htmlArchiveUrl, htmlPublishStatus: pub.htmlPublishStatus || (pub.ok ? 'success' : 'failed'), htmlPublishError: pub.htmlPublishError || '' } }];",
       mode: 'runOnceForAllItems',
     }, { id: 'e07ecdc2-e0ea-4096-b02c-0beec58bb104' }),
     node('Skip HTML publish', 'n8n-nodes-base.code', 2, [3024, 432], {
@@ -218,6 +224,12 @@ function patchOrchestrator(workflow, publisherId) {
     returnNode.parameters.jsCode = returnNode.parameters.jsCode.replace(
       "wikiPath: final.finalWikiPath || row.finalWikiPath || ri.finalWikiPath,",
       "wikiPath: final.finalWikiPath || row.finalWikiPath || ri.finalWikiPath,\n  htmlReportUrl: final.htmlReportUrl || null,\n  htmlArchiveUrl: final.htmlArchiveUrl || null,\n  htmlPublishStatus: final.htmlPublishStatus || 'disabled',\n  htmlPublishError: final.htmlPublishError || '',\n  artifacts: final.artifacts || [],"
+    );
+  }
+  if (!returnNode.parameters.jsCode.includes('wikiArchiveLink:')) {
+    returnNode.parameters.jsCode = returnNode.parameters.jsCode.replace(
+      "wikiPath: final.finalWikiPath || row.finalWikiPath || ri.finalWikiPath,",
+      "wikiPath: final.finalWikiPath || row.finalWikiPath || ri.finalWikiPath,\n  wikiArchiveLink: final.wikiArchiveLink || null,"
     );
   }
 
@@ -258,6 +270,12 @@ function patchQuery(workflow) {
       "finalWikiLink: run?.finalWikiLink || '',\n  htmlReportUrl: htmlArtifact.htmlReportUrl || '',\n  htmlArchiveUrl: htmlArtifact.htmlArchiveUrl || '',\n  htmlPublishStatus: htmlArtifact.htmlPublishStatus || '',\n  htmlPublishError: htmlArtifact.htmlPublishError || '',\n  artifacts: htmlArtifact.artifacts || [],"
     );
   }
+  if (!aggregate.parameters.jsCode.includes('wikiArchiveLink:')) {
+    aggregate.parameters.jsCode = aggregate.parameters.jsCode.replace(
+      "finalWikiLink: run?.finalWikiLink || '',",
+      "finalWikiLink: run?.finalWikiLink || '',\n  wikiArchiveLink: runInput.wikiArchive?.wikiArchiveLink || '',"
+    );
+  }
   return w;
 }
 
@@ -284,14 +302,36 @@ const [orchestrator, wrapper, query] = await Promise.all([
   api(`/workflows/${WRAPPER_ID}`),
   api(`/workflows/${QUERY_ID}`),
 ]);
+const validateGraph = (workflow) => {
+  const errors = [];
+  const names = new Set(workflow.nodes.map((entry) => entry.name));
+  if (names.size !== workflow.nodes.length) errors.push('duplicate node names');
+  for (const [source, outputs] of Object.entries(workflow.connections || {})) {
+    if (!names.has(source)) errors.push(`missing connection source: ${source}`);
+    for (const lists of Object.values(outputs || {})) for (const list of lists || []) for (const target of list || []) if (!names.has(target.node)) errors.push(`missing connection target: ${source} -> ${target.node}`);
+  }
+  return errors;
+};
+const validateCodeSyntax = (workflow) => workflow.nodes.filter((entry) => entry.type === 'n8n-nodes-base.code').flatMap((entry) => {
+  try { new Function(entry.parameters?.jsCode || ''); return []; } catch (error) { return [`${entry.name}: ${error.message}`]; }
+});
+const dryRunDrafts = {
+  publisher: publisherDraft,
+  orchestrator: patchOrchestrator(orchestrator, existingPublisher?.id || 'PENDING_ID'),
+  wrapper: patchWrapper(wrapper),
+  query: patchQuery(query),
+};
+const validations = Object.fromEntries(Object.entries(dryRunDrafts).map(([name, workflow]) => [name, [...validateGraph(workflow), ...validateCodeSyntax(workflow)]]));
+if (Object.values(validations).some((errors) => errors.length)) throw new Error(`Local workflow validation failed: ${JSON.stringify(validations)}`);
 
 if (!APPLY) {
   console.log(JSON.stringify({
     apply: false,
     publisher: { existingId: existingPublisher?.id || null, nodeCount: publisherDraft.nodes.length },
-    orchestrator: { id: orchestrator.id, beforeNodes: orchestrator.nodes.length, afterNodes: patchOrchestrator(orchestrator, existingPublisher?.id || 'PENDING_ID').nodes.length },
+    orchestrator: { id: orchestrator.id, beforeNodes: orchestrator.nodes.length, afterNodes: dryRunDrafts.orchestrator.nodes.length },
     wrapper: { id: wrapper.id },
     query: { id: query.id },
+    validations,
   }, null, 2));
   process.exit(0);
 }

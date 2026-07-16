@@ -28,6 +28,8 @@ const [
   prepareRunCodeSource,
   validateRunCode,
   finalizeRunCode,
+  generateProfessionalReportCode,
+  formatFinalReportCode,
 ] = await Promise.all([
   readReference('prompts/item-analysis-v4.md'),
   readReference('prompts/item-analysis-retry-v4.md'),
@@ -37,6 +39,8 @@ const [
   readReference('workflow-code/prepare-run-synthesis-v1.js'),
   readReference('workflow-code/validate-run-synthesis-v1.js'),
   readReference('workflow-code/finalize-run-synthesis-v1.js'),
+  readReference('workflow-code/generate-professional-report-v4.js'),
+  readReference('workflow-code/format-final-report-v4.js'),
 ]);
 const prepareRunCode = prepareRunCodeSource.replace("synthesisModel: 'gpt-5.5'", `synthesisModel: ${JSON.stringify(SYNTHESIS_MODEL)}`);
 
@@ -279,61 +283,27 @@ function patchOrchestratorWorkflow(workflow, aiTemplate) {
   patched.connections['Retry compact run-level synthesis'] = { main: [[{ node: 'Finalize run-level synthesis', type: 'main', index: 0 }]] };
   patched.connections['Finalize run-level synthesis'] = { main: [[{ node: 'Generate final professional report', type: 'main', index: 0 }]] };
 
-  const report = nodeByName(patched, 'Generate final professional report');
-  let reportCode = report.parameters.jsCode.replace("const root = $('Aggregate item rows').first().json || {};", "const root = $('Finalize run-level synthesis').first().json || {};");
-  reportCode = reportCode.replace(
-    "const points = (item, key, fallback) => uniq([...(arr(analysisOf(item)[key])), ...(arr(item?.analysis?.[key])), ...(fallback ? arr(analysisOf(item)[fallback]) : [])].map(x => typeof x === 'object' ? (x.point || x.text || x.theme || x.summary || JSON.stringify(x)) : x));",
-    "const points = (item, key, fallback) => uniq([...(arr(analysisOf(item)[key])), ...(arr(item?.analysis?.[key])), ...(fallback ? arr(analysisOf(item)[fallback]) : [])].map(x => typeof x === 'object' ? (x.insight || x.action || x.point || x.text || x.theme || x.summary || JSON.stringify(x)) : x));"
-  );
-  if (!reportCode.includes('const synthesis = ri.marketSynthesis')) reportCode = reportCode.replace(
-    "const ownA = own ? analysisOf(own) : {};",
-    "const ownA = own ? analysisOf(own) : {};\nconst synthesis = ri.marketSynthesis && typeof ri.marketSynthesis === 'object' ? ri.marketSynthesis : {};\nconst ownDecision = synthesis.ownDecision && typeof synthesis.ownDecision === 'object' ? synthesis.ownDecision : {};"
-  );
-  reportCode = reportCode.replace(
-    "const allOpps = uniq(successful.flatMap(i => points(i, 'opportunityPoints', 'opportunities')));",
-    "const runOpps = uniq(arr(ownDecision.opportunities).map(x => typeof x === 'object' ? (x.insight || x.action || x.text || JSON.stringify(x)) : x));\nconst allOpps = runOpps.length ? runOpps : (own ? points(own, 'opportunityPoints', 'opportunities') : []);"
-  ).replace(
-    "const allRisks = uniq(successful.flatMap(i => points(i, 'riskPoints', 'risks')));",
-    "const runRisks = uniq(arr(ownDecision.risks).map(x => typeof x === 'object' ? (x.insight || x.action || x.text || JSON.stringify(x)) : x));\nconst allRisks = runRisks.length ? runRisks : (own ? points(own, 'riskPoints', 'risks') : []);"
-  );
-  reportCode = reportCode
-    .replace(
-      "const allOpps = uniq(arr(ownDecision.opportunities).map(x => typeof x === 'object' ? (x.insight || x.action || x.text || JSON.stringify(x)) : x));",
-      "const runOpps = uniq(arr(ownDecision.opportunities).map(x => typeof x === 'object' ? (x.insight || x.action || x.text || JSON.stringify(x)) : x));\nconst allOpps = runOpps.length ? runOpps : (own ? points(own, 'opportunityPoints', 'opportunities') : []);"
-    )
-    .replace(
-      "const allRisks = uniq(arr(ownDecision.risks).map(x => typeof x === 'object' ? (x.insight || x.action || x.text || JSON.stringify(x)) : x));",
-      "const runRisks = uniq(arr(ownDecision.risks).map(x => typeof x === 'object' ? (x.insight || x.action || x.text || JSON.stringify(x)) : x));\nconst allRisks = runRisks.length ? runRisks : (own ? points(own, 'riskPoints', 'risks') : []);"
-    );
-  reportCode = reportCode.replace(
-    "bullet('本报告已按 V3.1 质量规则生成：主报告只呈现业务结论，逐图/OCR 细节保留在子页面和 Data Table 结构化 JSON 中。');",
-    "bullet(synthesis.marketConclusion?.headline || '本报告已完成单品证据提取和批次级综合分析；逐图/OCR 细节保留在 HTML 证据墙和 Data Table 中。');\nif (synthesis.marketConclusion?.summary) bullet(synthesis.marketConclusion.summary);"
-  );
-  reportCode = reportCode.replace(
-    "const titleCandidate = clean(ownA.listingSuggestionsForOwnProduct?.titleDirection) ||",
-    "const titleCandidate = clean(synthesis.titleStrategy?.recommendedDirection) || clean(ownA.listingSuggestionsForOwnProduct?.titleDirection) ||"
-  );
-  if (!reportCode.includes("h3('关键词策略')")) reportCode = reportCode.replace(
-    "h3('五点描述');",
-    "h3('关键词策略');\nuniq([...(arr(synthesis.keywordStrategy?.core)), ...(arr(synthesis.keywordStrategy?.feature)), ...(arr(synthesis.keywordStrategy?.scenario)), ...(arr(synthesis.keywordStrategy?.longTail))]).slice(0,16).forEach(bullet);\narr(synthesis.keywordStrategy?.mustVerify).slice(0,6).forEach(x => bullet('待验证：' + x));\nlines.push('');\nh3('五点描述');"
-  );
-  reportCode = reportCode.replace(
-    "['补强主图和前 6 张功能图，确保点击点、效果点、安全点、场景点齐全。','A+ / 视频 unknown 的 ASIN 先补抓确认，不把 unknown 写成“没有”。','标题建议必须压缩到日本站 75 字符以内。','五点描述分别覆盖效果、场景、安全、便利、售后，避免重复。'].forEach(bullet);",
-    "(arr(ownDecision.actionPlan).filter(x => x?.priority === 'P0').map(x => x.action || x.insight || x.text).filter(Boolean).length ? arr(ownDecision.actionPlan).filter(x => x?.priority === 'P0').map(x => x.action || x.insight || x.text).filter(Boolean) : ['补强主图和前 6 张功能图，确保点击点、效果点、安全点、场景点齐全。','A+ / 视频 unknown 的 ASIN 先补抓确认，不把 unknown 写成“没有”。']).forEach(bullet);"
-  ).replace(
-    "['用广告搜索词报告验证关键词，不依赖一次性竞品词池。','按点击率、转化率和退货原因逐图迭代，优先修改影响最大的页面模块。','扩大 Review/Q&A 样本，检查本次样本主题是否稳定。'].forEach(bullet);",
-    "(arr(ownDecision.actionPlan).filter(x => x?.priority === 'P1').map(x => x.action || x.insight || x.text).filter(Boolean).length ? arr(ownDecision.actionPlan).filter(x => x?.priority === 'P1').map(x => x.action || x.insight || x.text).filter(Boolean) : ['用广告搜索词报告验证关键词，不依赖一次性竞品词池。','按点击率、转化率和退货原因逐图迭代。']).forEach(bullet);"
-  ).replace(
-    "['建立季度竞品复跑和 Data Table 趋势对比。','沉淀各品类图片漏斗模板。','对重点竞品进行像素级版式复盘。'].forEach(bullet);",
-    "(arr(ownDecision.actionPlan).filter(x => x?.priority === 'P2').map(x => x.action || x.insight || x.text).filter(Boolean).length ? arr(ownDecision.actionPlan).filter(x => x?.priority === 'P2').map(x => x.action || x.insight || x.text).filter(Boolean) : ['建立季度竞品复跑和 Data Table 趋势对比。','沉淀各品类图片漏斗模板。']).forEach(bullet);"
-  );
-  report.parameters.jsCode = reportCode;
+  nodeByName(patched, 'Generate final professional report').parameters.jsCode = generateProfessionalReportCode.trim();
+  nodeByName(patched, 'Format final report').parameters.jsCode = formatFinalReportCode.trim();
 
-  const formatter = nodeByName(patched, 'Format final report');
-  formatter.parameters.jsCode = formatter.parameters.jsCode
-    .replace("const root = $('Aggregate item rows').first().json || {};", "const root = $('Finalize run-level synthesis').first().json || {};")
-    .replaceAll('v3.1-quality-renderer', 'v4.0-market-synthesis-renderer')
-    .replace("version: 'v3.2-report-qa'", "version: 'v4.0-report-qa'");
+  const archiveInstalled = patched.nodes.some((node) => node.name === 'Prepare Wiki archive publish input');
+  if (!archiveInstalled) {
+    const shiftNames = new Set(['Attach final Wiki link', 'Upsert run final', 'Return orchestrator result']);
+    for (const entry of patched.nodes) if (shiftNames.has(entry.name)) entry.position[0] += 448;
+  }
+  const prepareArchive = codeNode('Prepare Wiki archive publish input', [5488, 240], "function ctx(){ try { const x=$('Attach HTML report link').first().json||{}; if(Object.keys(x).length) return x; } catch {} try { const x=$('Skip HTML publish').first().json||{}; if(Object.keys(x).length) return x; } catch {} return $('Format final report').first().json||{}; } const out=ctx(); return [{ json: { title: out.title + ' · Run ' + (out.reportInput?.runId || out.runId || ''), markdown: out.markdown, path: out.wikiArchivePath, locale: 'zh', description: 'Amazon 竞品分析不可变运行归档', tags: ['amazon','competitor','analysis','run-archive'], sourceType: 'n8n-workflow', sourceUrl: out.htmlArchiveUrl || out.htmlReportUrl || '', author: '[工具] Analyze Amazon competitors orchestrator v2' } }];");
+  const publishArchive = structuredClone(nodeByName(patched, 'Publish final Wiki report'));
+  publishArchive.id = randomUUID();
+  publishArchive.name = 'Publish Wiki run archive';
+  publishArchive.position = [5712, 240];
+  publishArchive.onError = 'continueRegularOutput';
+  upsertNode(patched, prepareArchive);
+  upsertNode(patched, publishArchive);
+  nodeByName(patched, 'Prepare final Wiki publish input').parameters.jsCode = "function ctx(){ try { const x=$('Attach HTML report link').first().json||{}; if(Object.keys(x).length) return x; } catch {} try { const x=$('Skip HTML publish').first().json||{}; if(Object.keys(x).length) return x; } catch {} return $('Format final report').first().json||{}; } const out=ctx(); return [{ json: { title: out.title, markdown: out.markdown, path: out.wikiPath, locale: 'zh', description: 'Amazon 竞品分析综合报告', tags: ['amazon','competitor','analysis'], sourceType: 'n8n-workflow', sourceUrl: out.htmlReportUrl || '', author: '[工具] Analyze Amazon competitors orchestrator v2' } }];";
+  nodeByName(patched, 'Attach final Wiki link').parameters.jsCode = "function ctx(){ try { const x=$('Attach HTML report link').first().json||{}; if(Object.keys(x).length) return x; } catch {} try { const x=$('Skip HTML publish').first().json||{}; if(Object.keys(x).length) return x; } catch {} return $('Format final report').first().json||{}; } const out=ctx(); const latest=$('Publish final Wiki report').first().json||{}; const archive=$input.first().json||{}; let rowInput={}; try { rowInput=JSON.parse(out.row?.inputJson_object||'{}'); } catch {} rowInput.wikiArchive={wikiArchivePath:out.wikiArchivePath||'',wikiArchiveLink:archive.wikiLink||out.wikiArchiveLink||'',publish:archive}; const row={...(out.row||{}),inputJson_object:JSON.stringify(rowInput),finalWikiLink:latest.wikiLink||latest.link||''}; return [{json:{...out,row,wikiPublish:latest,wikiLink:row.finalWikiLink,wikiArchivePublish:archive,wikiArchiveLink:archive.wikiLink||out.wikiArchiveLink||''}}];";
+  patched.connections['Publish final Wiki report'] = { main: [[{ node: 'Prepare Wiki archive publish input', type: 'main', index: 0 }]] };
+  patched.connections['Prepare Wiki archive publish input'] = { main: [[{ node: 'Publish Wiki run archive', type: 'main', index: 0 }]] };
+  patched.connections['Publish Wiki run archive'] = { main: [[{ node: 'Attach final Wiki link', type: 'main', index: 0 }]] };
 
   const sticky = nodeByName(patched, 'V2 architecture note');
   sticky.parameters.content = '## Amazon 竞品分析 v4 编排器\n单品证据包并发分析 → 批次级统一评分与经营综合 → 确定性 Wiki/HTML 渲染 → QA Gate。评分只在 run-level 使用同一套维度完成，单品节点不再各自生成评分口径。';
@@ -381,17 +351,17 @@ const patchedOrchestrator = patchOrchestratorWorkflow(orchestratorWorkflow, node
 const validations = {
   item: validateGraph(patchedItem, [['Analyze competitor strict JSON', 'Validate first AI JSON'], ['Retry compact strict JSON analysis', 'Format item result']]),
   gemini: validateGraph(patchedGemini, [['Call Gemini Proxy API', 'Parse and Validate Per-Image JSON']]),
-  orchestrator: validateGraph(patchedOrchestrator, [['Aggregate item rows', 'Prepare run-level synthesis input'], ['Finalize run-level synthesis', 'Generate final professional report']]),
+  orchestrator: validateGraph(patchedOrchestrator, [['Aggregate item rows', 'Prepare run-level synthesis input'], ['Finalize run-level synthesis', 'Generate final professional report'], ['Publish final Wiki report', 'Prepare Wiki archive publish input'], ['Publish Wiki run archive', 'Attach final Wiki link']]),
   itemCode: validateCodeSyntax(patchedItem, ['Prepare single competitor input', 'Prepare visual image input', 'Build analysis cache key', 'Validate first AI JSON', 'Prepare compact AI retry', 'Format item result']),
   geminiCode: validateCodeSyntax(patchedGemini, ['Build Gemini Strict JSON Payload', 'Parse and Validate Per-Image JSON']),
-  orchestratorCode: validateCodeSyntax(patchedOrchestrator, ['Aggregate item rows', 'Prepare run-level synthesis input', 'Validate run-level synthesis JSON', 'Finalize run-level synthesis', 'Generate final professional report', 'Format final report']),
+  orchestratorCode: validateCodeSyntax(patchedOrchestrator, ['Aggregate item rows', 'Prepare run-level synthesis input', 'Validate run-level synthesis JSON', 'Finalize run-level synthesis', 'Generate final professional report', 'Format final report', 'Prepare Wiki archive publish input', 'Attach final Wiki link']),
 };
 if (Object.values(validations).some((errors) => errors.length)) throw new Error(`Local workflow validation failed: ${JSON.stringify(validations)}`);
 
 const summary = {
   apply: APPLY,
   models: { analysis: ANALYSIS_MODEL, synthesis: SYNTHESIS_MODEL, visual: VISUAL_MODEL },
-  versions: { itemPrompt: 'amazon-item-evidence-v4', visualPrompt: 'amazon-visual-v4', runSynthesis: 'amazon-run-synthesis-v1' },
+  versions: { itemPrompt: 'amazon-item-evidence-v4', visualPrompt: 'amazon-visual-v4', runSynthesis: 'amazon-run-synthesis-v1', reportRenderer: 'v4.1-evidence-linked-renderer' },
   workflows: {
     item: { id: ITEM_ID, beforeNodes: itemWorkflow.nodes.length, afterNodes: patchedItem.nodes.length },
     gemini: { id: GEMINI_ID, beforeNodes: geminiWorkflow.nodes.length, afterNodes: patchedGemini.nodes.length },
@@ -439,10 +409,13 @@ const verification = {
   orchestrator: {
     synthesisNodePresent: savedOrchestrator.nodes.some((node) => node.name === 'Synthesize run-level market strategy'),
     finalEdgePresent: Object.values(savedOrchestrator.connections?.['Finalize run-level synthesis'] || {}).flat(2).some((entry) => entry?.node === 'Generate final professional report'),
+    reportRendererPresent: nodeByName(savedOrchestrator, 'Generate final professional report').parameters.jsCode.includes('v4.1-evidence-linked-renderer'),
+    reportQaPresent: nodeByName(savedOrchestrator, 'Format final report').parameters.jsCode.includes('CATEGORY_TEMPLATE_LEAK'),
+    wikiArchivePresent: savedOrchestrator.nodes.some((node) => node.name === 'Publish Wiki run archive') && Object.values(savedOrchestrator.connections?.['Publish Wiki run archive'] || {}).flat(2).some((entry) => entry?.node === 'Attach final Wiki link'),
     active: savedOrchestrator.active,
   },
 };
-if (!verification.item.promptVersionPresent || !verification.item.validatorPresent || !verification.gemini.schemaFieldsPresent || !verification.gemini.parserFieldsPresent || !verification.orchestrator.synthesisNodePresent || !verification.orchestrator.finalEdgePresent) {
+if (!verification.item.promptVersionPresent || !verification.item.validatorPresent || !verification.gemini.schemaFieldsPresent || !verification.gemini.parserFieldsPresent || !verification.orchestrator.synthesisNodePresent || !verification.orchestrator.finalEdgePresent || !verification.orchestrator.reportRendererPresent || !verification.orchestrator.reportQaPresent || !verification.orchestrator.wikiArchivePresent) {
   throw new Error(`Post-save verification failed: ${JSON.stringify(verification)}`);
 }
 

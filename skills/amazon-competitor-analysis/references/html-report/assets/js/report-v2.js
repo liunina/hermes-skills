@@ -171,12 +171,66 @@
     $('.lightbox-close', lightbox).addEventListener('click', close);
     lightbox.addEventListener('click', (event) => { if (event.target === lightbox) close(); });
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
-    $$('.gallery figure img, .product-image').forEach((source) => {
-      source.addEventListener('click', () => {
-        image.src = source.currentSrc || source.src;
-        image.alt = source.alt || '';
-        lightbox.classList.add('is-open');
+    document.addEventListener('click', (event) => {
+      const source = event.target.closest('.gallery figure img, .product-image, .visual-evidence-media img, .markdown-body img');
+      if (!source) return;
+      image.src = source.currentSrc || source.src;
+      image.alt = source.alt || '';
+      lightbox.classList.add('is-open');
+    });
+  }
+
+  const listMarkup = (values, emptyText) => {
+    const rows = Array.isArray(values) ? values.filter((value) => String(value ?? '').trim()) : [];
+    return rows.length ? `<ul>${rows.map((value) => `<li>${escape(value)}</li>`).join('')}</ul>` : `<div class="empty compact">${escape(emptyText)}</div>`;
+  };
+
+  function renderVisualEvidence(details) {
+    if (!details || details.dataset.rendered === 'true') return;
+    const asin = details.dataset.visualAsin;
+    const product = byAsin.get(asin);
+    const container = $('[data-visual-evidence-grid]', details);
+    if (!container || !product) return;
+    const isOwn = product.itemRole === 'own';
+    const results = Array.isArray(product.visualEvidence) ? product.visualEvidence : [];
+    container.innerHTML = results.length ? results.map((result) => {
+      const index = Number(result.index || 0) + 1;
+      const advice = isOwn
+        ? `${listMarkup(result.strengths, '未返回视觉优势')}${listMarkup(result.opportunities, '未返回逐图建议')}${listMarkup(result.risks, '未返回逐图风险')}`
+        : `${listMarkup([...(result.referencePatterns || []), ...(result.strengths || [])], '未返回可借鉴亮点')}${listMarkup(result.opportunities, '未返回可迁移方向')}${listMarkup(result.risks, '未返回不可照搬或合规提示')}`;
+      return `<article class="visual-evidence-card" id="asin-${escape(asin)}-image-${index}"><div class="visual-evidence-media">${result.displayUrl ? `<img loading="lazy" src="${escape(result.displayUrl)}" alt="${escape(asin)} ${escape(result.role || 'image')} ${index}">` : '<div class="empty">图片未返回</div>'}<span class="visual-image-role">${escape(result.role || 'image')} #${index}</span></div><div class="visual-evidence-body"><div class="visual-evidence-meta"><span>${escape(result.coreMessage || '未返回核心信息')}</span><span>清晰 ${escape(result.scores?.clarity ?? '-')} · 转化 ${escape(result.scores?.conversion ?? '-')}</span></div><div class="visual-evidence-columns"><div class="visual-evidence-block visual-evidence-ocr"><h5>文字识别（OCR）</h5>${listMarkup(result.ocrText, '未检测到可读文字')}</div><div class="visual-evidence-block"><h5>画面证据</h5><div class="evidence-subblock"><h6>可见元素</h6>${listMarkup(result.visibleElements || result.observations, '未返回画面元素证据')}</div><div class="evidence-subblock"><h6>可见主张</h6>${listMarkup(result.visibleClaims, '未返回可验证主张')}</div></div><div class="visual-evidence-block"><h5>${isOwn ? '视觉分析与改版建议' : '视觉分析与借鉴建议'}</h5>${advice}</div></div></div></article>`;
+    }).join('') : '<div class="empty">未返回逐图视觉证据</div>';
+    details.dataset.rendered = 'true';
+  }
+
+  function initLazyContent() {
+    $$('.visual-evidence-details[data-visual-asin]').forEach((details) => {
+      details.addEventListener('toggle', () => { if (details.open) renderVisualEvidence(details); });
+    });
+    const fullReport = $('[data-full-report]');
+    const fullBody = $('[data-full-report-body]');
+    const template = $('#full-report-template');
+    if (fullReport && fullBody && template) {
+      fullReport.addEventListener('toggle', () => {
+        if (!fullReport.open || fullReport.dataset.rendered === 'true') return;
+        fullBody.innerHTML = '';
+        fullBody.appendChild(template.content.cloneNode(true));
+        fullReport.dataset.rendered = 'true';
       });
+    }
+    document.addEventListener('click', (event) => {
+      const link = event.target.closest('a.decision-insight-link[href*="-image-"]');
+      if (!link) return;
+      const hash = link.getAttribute('href');
+      const match = hash?.match(/^#asin-(B0[A-Z0-9]{8})-image-(\d+)$/i);
+      if (!match) return;
+      const group = document.getElementById(`asin-${match[1]}`);
+      const details = group ? $('.visual-evidence-details', group) : null;
+      if (!details) return;
+      event.preventDefault();
+      details.open = true;
+      renderVisualEvidence(details);
+      document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
   }
 
@@ -195,6 +249,7 @@
   renderMarketChart();
   renderScoreChart();
   initSorting();
+  initLazyContent();
   initLightbox();
   initNavigation();
   root.dataset.reportV2Ready = 'true';

@@ -3,7 +3,7 @@ name: amazon-competitor-analysis
 description: Analyze Amazon competitors through a registered n8n workflow skill. Use when the user asks to compare Amazon ASINs, product links, market positioning, price bands, review patterns, listing opportunities, image strategy, keywords, A+ page gaps, or publish a competitor report to Wiki.js and optionally notify Mattermost.
 metadata:
   hermes:
-    version: 0.6.0
+    version: 0.7.0
     author: liunina
     tags: [amazon, competitor, listing, ecommerce, n8n, workflow]
     category: ecommerce
@@ -120,6 +120,15 @@ The production v2 topology now uses a v4 prompt architecture while retaining one
 - The single-item workflow sends up to 8 product images and 4 A+ images to Gemini for pixel-bounded, per-image visual analysis. Treat failed images as unavailable evidence and never infer invisible content from the URL or filename.
 - Use `reportQa` to decide whether a generated final report is publishable. If `reportQa.passed` is false, inspect `blockingIssues`, fix the workflow/report data, and rerun before enabling Wiki publish.
 - Default `publishHtml` to `false` in generic calls. When the user asks to publish the final Wiki report, explicitly send both `publishWiki: true` and `publishHtml: true` unless they opt out of HTML.
+
+## v4.1 Evidence-Linked Delivery
+
+- The deterministic Wiki renderer is `v4.1-evidence-linked-renderer`; it consumes the same structured `reportInput` as the HTML publisher and does not inject category-specific fallback copy.
+- `reportQa` blocks Wiki publication for category-template leakage, title-rule contradictions, malformed image markup, unknown A+/video states rewritten as definite absence, unrendered AI actions, or actions without evidence references.
+- The latest Wiki page remains at `home/areas/ecommerce/amazon/competitor-analysis/{ownAsin}`. Every run also has an immutable archive at `.../{ownAsin}/runs/{runId}`; query output exposes `wikiArchiveLink` together with the latest link.
+- HTML evidence links resolve to exact anchors such as `#asin-{ASIN}`, `#asin-{ASIN}-image-{N}`, `#review-insights`, `#listing-text`, and `#matrix`. Image-level Gemini cards and the full Wiki body are constructed when expanded, keeping the initial DOM bounded for 4-8 competitor runs.
+- The HTML report exposes data-coverage bars, category score-dimension heatmaps, owned-product image/A+ revision blueprints, and owner/acceptance metrics for P0/P1/P2 actions. Competitor image sections are framed as borrowable references; owned assets are framed as diagnostics.
+- Competitor input should use one ASIN or URL per line (or comma/semicolon separated). Space-separated ASINs are not treated as separate items by the n8n normalizer.
 
 ## Input Example
 
