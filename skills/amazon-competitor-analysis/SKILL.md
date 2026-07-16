@@ -64,7 +64,7 @@ The production orchestrator can publish a responsive visual HTML report in addit
 - Enable it with `publishHtml: true`; keep it false for dry-runs and read-only analysis.
 - Store the latest report at `amazon/competitor-analysis/{ownAsin}/index.html`.
 - Store immutable run artifacts under `amazon/competitor-analysis/{ownAsin}/runs/{runId}/`, including `index.html`, `manifest.json`, `report-data.json`, and cached Listing/A+ images.
-- Store shared v1 CSS at `amazon/competitor-analysis/_assets/css/report-v1.css`.
+- The production default is the v2 evidence-wall renderer. The legacy v1 CSS remains available at `amazon/competitor-analysis/_assets/css/report-v1.css` for rollback only.
 - Store v2 local assets under `amazon/competitor-analysis/_assets/report-v2/`: `css/report-v2.css`, `js/report-v2.js`, `icons/report-icons.svg`, and the Inter font files. The v2 report references these MinIO assets instead of inline third-party resources.
 - Use bucket `amazon-reports` and the standard public base URL `https://data.dinve.com/amazon-reports` by default.
 - Default `htmlUseShortUrl: true` because the production reverse proxy now maps `/amazon/competitor-analysis/*` to `/amazon-reports/amazon/competitor-analysis/*`. Callers may explicitly set it to false when diagnosing the native bucket URL.

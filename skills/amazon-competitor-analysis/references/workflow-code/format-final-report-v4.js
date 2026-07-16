@@ -19,6 +19,10 @@ function sanitizeUnknownAssetClaims(markdown) {
       .replace(/没有\s*A\+\s*证据/g, '当前抓取未返回 A+ 证据')
       .replace(/竞品\s*A\+\s*未返回/g, '竞品 A+ 状态待确认')
       .replace(/A\+\s*未返回/g, 'A+ 状态待确认')
+      .replace(/竞品\s*A\+\s*未由抓取源返回/g, '竞品 A+ 状态待确认')
+      .replace(/A\+\s*未由抓取源返回/g, 'A+ 状态待确认')
+      .replace(/不能断言\s*无\s*A\+/g, '当前无法确认 A+ 状态')
+      .replace(/断言\s*无\s*A\+/g, '确认 A+ 状态')
       .replace(/竞品\s*A\+\s*缺失/g, '竞品 A+ 状态待确认')
       .replace(/A\+\s*缺失/g, 'A+ 状态待确认');
   }

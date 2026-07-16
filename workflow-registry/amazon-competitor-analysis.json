@@ -189,7 +189,7 @@
     "htmlPublicBaseUrl": "https://data.dinve.com/amazon-reports",
     "htmlShortBaseUrl": "https://data.dinve.com",
     "htmlUseShortUrl": true,
-    "htmlStyleVersion": "v1",
+    "htmlStyleVersion": "v2",
     "htmlMaxProductImages": 5,
     "htmlMaxAplusImages": 4,
     "notifyMattermost": false,

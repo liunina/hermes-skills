@@ -68,7 +68,7 @@ const endpointBaseUrl = trimSlash(input.endpointBaseUrl || 'https://data.dinve.c
 const publicBaseUrl = trimSlash(input.publicBaseUrl || `${endpointBaseUrl}/${bucket}`);
 const shortBaseUrl = trimSlash(input.shortBaseUrl || '');
 const useShortUrl = input.useShortUrl === true && Boolean(shortBaseUrl);
-const styleVersion = safeSegment(input.styleVersion || 'v1', 'v1');
+const styleVersion = safeSegment(input.styleVersion || 'v2', 'v2');
 const maxProductImages = bounded(input.maxProductImages, 5, 0, 8);
 const maxAplusImages = bounded(input.maxAplusImages, 4, 0, 8);
 const archiveBaseKey = `${prefix}/${ownAsin}/runs/${runId}`;

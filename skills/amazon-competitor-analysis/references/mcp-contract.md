@@ -85,7 +85,7 @@ MinIO object convention:
 - Run snapshot: `amazon/competitor-analysis/{ownAsin}/runs/{runId}/index.html`.
 - Run metadata: `amazon/competitor-analysis/{ownAsin}/runs/{runId}/manifest.json` and `report-data.json`.
 - Cached report images: `amazon/competitor-analysis/{ownAsin}/runs/{runId}/assets/images/`.
-- Shared v1 CSS: `amazon/competitor-analysis/_assets/css/report-v1.css`.
+- Legacy v1 CSS: `amazon/competitor-analysis/_assets/css/report-v1.css` (rollback only).
 - Shared v2 assets: `amazon/competitor-analysis/_assets/report-v2/css/report-v2.css`, `js/report-v2.js`, `icons/report-icons.svg`, and Inter font files.
 - Standard URL base: `https://data.dinve.com/amazon-reports`. The shorter `https://data.dinve.com/amazon/competitor-analysis/...` form is valid only after a reverse proxy hides the bucket name.
 - Object upload success does not make a private bucket public. Delivery requires anonymous read-only access for the object prefix or an authenticated/reverse-proxy layer; never allow anonymous writes.
@@ -129,7 +129,7 @@ Read-only query endpoint:
   "htmlPublicBaseUrl": "https://data.dinve.com/amazon-reports",
   "htmlShortBaseUrl": "https://data.dinve.com",
   "htmlUseShortUrl": true,
-  "htmlStyleVersion": "v1",
+  "htmlStyleVersion": "v2",
   "htmlMaxProductImages": 5,
   "htmlMaxAplusImages": 4,
   "notifyMattermost": false,
