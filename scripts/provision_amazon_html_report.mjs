@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -296,6 +296,17 @@ if (!APPLY) {
   process.exit(0);
 }
 
+const backupStamp = new Date().toISOString().replace(/[:.]/g, '-');
+const backupDir = path.resolve(here, '../../tmp/n8n-backups', `${backupStamp}-amazon-html-publisher-before-apply`);
+await mkdir(backupDir, { recursive: true });
+const existingPublisherFull = existingPublisher ? await api(`/workflows/${existingPublisher.id}`) : null;
+await Promise.all([
+  writeFile(path.join(backupDir, `${ORCHESTRATOR_ID}__orchestrator.json`), JSON.stringify(orchestrator, null, 2)),
+  writeFile(path.join(backupDir, `${WRAPPER_ID}__wrapper.json`), JSON.stringify(wrapper, null, 2)),
+  writeFile(path.join(backupDir, `${QUERY_ID}__query.json`), JSON.stringify(query, null, 2)),
+  ...(existingPublisherFull ? [writeFile(path.join(backupDir, `${existingPublisher.id}__html-publisher.json`), JSON.stringify(existingPublisherFull, null, 2))] : []),
+]);
+
 let publisher;
 if (existingPublisher) {
   publisher = await api(`/workflows/${existingPublisher.id}`, { method: 'PUT', body: minimalWorkflow(publisherDraft) });
@@ -318,6 +329,7 @@ for (const id of [ORCHESTRATOR_ID, WRAPPER_ID, QUERY_ID]) {
 
 console.log(JSON.stringify({
   apply: true,
+  backupDir,
   publisher: { id: publisher.id, name: publisher.name, active: publisher.active, nodeCount: publisher.nodes.length },
   orchestrator: { id: savedOrchestrator.id, nodeCount: savedOrchestrator.nodes.length },
   wrapper: { id: savedWrapper.id, nodeCount: savedWrapper.nodes.length },

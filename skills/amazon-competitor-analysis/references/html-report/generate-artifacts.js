@@ -1,5 +1,7 @@
 const source = $('When called by orchestrator').first().json || {};
 const ri = source.reportInput && typeof source.reportInput === 'object' ? source.reportInput : {};
+const marketSynthesis = ri.marketSynthesis && typeof ri.marketSynthesis === 'object' ? ri.marketSynthesis : {};
+const ownDecision = marketSynthesis.ownDecision && typeof marketSynthesis.ownDecision === 'object' ? marketSynthesis.ownDecision : {};
 const prepared = $('Prepare image tasks').all().map((item) => item.json || {});
 const built = $('Build image binaries').all().map((item) => item.json || {});
 const uploadResults = $input.all().map((item) => item.json || {});
@@ -58,7 +60,7 @@ const flattenText = (value, output = []) => {
     return output;
   }
   if (typeof value === 'object') {
-    for (const key of ['text', 'title', 'theme', 'keyword', 'value', 'point', 'summary', 'message', 'label']) {
+    for (const key of ['text', 'title', 'theme', 'keyword', 'term', 'value', 'point', 'insight', 'action', 'pattern', 'adaptationForOwn', 'summary', 'message', 'label']) {
       if (value[key]) flattenText(value[key], output);
     }
   }
@@ -153,13 +155,17 @@ const normalizedEntities = entities.map((entity) => {
       visibleClaims,
       observations: uniqueText(visibleElements, visibleClaims).slice(0, 8),
       strengths: uniqueText(result.conversionStrengths).slice(0, 5),
-      opportunities: uniqueText(result.opportunities).slice(0, 5),
-      risks: uniqueText(result.risks, result.complianceRisks).slice(0, 5),
+      referencePatterns: uniqueText(result.borrowablePatterns, result.transferableExpression).slice(0, 5),
+      opportunities: uniqueText(result.ownProductImplication, result.opportunities).slice(0, 5),
+      risks: uniqueText(result.doNotCopy, result.risks, result.complianceRisks).slice(0, 5),
+      funnelStage: clean(result.funnelStage || 'unknown'),
+      claimEvidenceQuality: clean(result.claimEvidenceQuality || 'none'),
+      ocrConfidence: numericValue(result.ocrConfidence),
       scores: result.scores || {},
     };
   });
   const visualObservations = uniqueText(imageAplus.observations, visualEvidence.map((result) => result.coreMessage)).slice(0, 6);
-  const visualStrengths = uniqueText(imageAplus.strengths, imageAplus.conversionStrengths, visualEvidence.flatMap((result) => result.strengths), analysis.sellingPoints).slice(0, 8);
+  const visualStrengths = uniqueText(imageAplus.strengths, imageAplus.conversionStrengths, imageAplus.borrowablePatterns, visualEvidence.flatMap((result) => result.strengths), visualEvidence.flatMap((result) => result.referencePatterns), analysis.sellingPoints).slice(0, 8);
   const visualOpportunities = uniqueText(imageAplus.conversionFunnelGaps, visualEvidence.flatMap((result) => result.opportunities)).slice(0, 6);
   const visualRisks = uniqueText(imageAplus.missingContent, visualEvidence.flatMap((result) => result.risks)).slice(0, 6);
   const aplusCount = Number(entity.aplusImageCount ?? listing.aplusImageCount ?? analysis.aplusImageCount ?? cachedImages.filter((item) => item.assetRole === 'aplus').length) || 0;
@@ -407,7 +413,7 @@ const normalizePriority = (value, kind, text) => {
   return 'P1';
 };
 const insightText = (value) => typeof value === 'object'
-  ? uniqueText(value.point, value.title, value.summary, value.message, value.text, value.label, value.value)[0] || ''
+  ? uniqueText(value.insight, value.action, value.point, value.title, value.summary, value.message, value.text, value.label, value.value)[0] || ''
   : uniqueText(value)[0] || '';
 const insightItemsFrom = (values, entity, kind, defaultSource) => {
   const flattenValues = (value) => Array.isArray(value)
@@ -418,8 +424,8 @@ const insightItemsFrom = (values, entity, kind, defaultSource) => {
     const text = insightText(value);
     if (!text) return null;
     const object = value && typeof value === 'object' ? value : {};
-    const evidence = uniqueText(object.evidence, object.basis, object.reason, object.impact, object.dataSource)[0] || '';
-    const action = uniqueText(object.action, object.recommendation, object.suggestion, object.nextStep, object.fix)[0] || '';
+    const evidence = uniqueText(object.evidence, object.evidenceRefs, object.basis, object.reason, object.impact, object.dataSource)[0] || '';
+    const action = uniqueText(object.action, object.recommendation, object.suggestion, object.nextStep, object.fix, object.applicability)[0] || '';
     const source = uniqueText(object.source, object.category, object.type)[0] || defaultSource;
     const confidence = clean(object.confidence || object.evidenceStatus || '') || 'medium';
     return {
@@ -431,6 +437,7 @@ const insightItemsFrom = (values, entity, kind, defaultSource) => {
       source,
       confidence,
       asin: entity.asin,
+      sourceAsins: uniqueText(object.sourceAsins),
       itemRole: entity.itemRole,
     };
   }).filter(Boolean);
@@ -442,7 +449,7 @@ const mergeInsightItems = (items) => {
     if (!key) continue;
     const previous = merged.get(key);
     if (!previous) {
-      merged.set(key, { ...item, asins: [item.asin], sources: [item.source] });
+      merged.set(key, { ...item, asins: uniqueText(item.asin, item.sourceAsins), sources: [item.source] });
       continue;
     }
     previous.priority = (priorityRank[item.priority] ?? 9) < (priorityRank[previous.priority] ?? 9) ? item.priority : previous.priority;
@@ -468,25 +475,31 @@ const riskItems = mergeInsightItems(normalizedEntities.flatMap((entity) => insig
 )));
 // 经营决策总览只回答“我方现在要做什么”，因此机会、风险和行动计划
 // 只从 ownEntity 提取。竞品洞察仍保留在竞争格局、图片证据墙和完整报告中。
-const ownOpportunityItems = mergeInsightItems(ownEntities.flatMap((entity) => insightItemsFrom(
-  [entity.analysis?.opportunityPoints, entity.analysis?.opportunities, entity.opportunities, entity.visualOpportunities],
-  entity,
-  'opportunity',
-  '我方 Listing',
-)));
-const ownRiskItems = mergeInsightItems(ownEntities.flatMap((entity) => insightItemsFrom(
-  [entity.analysis?.riskPoints, entity.analysis?.risks, entity.risks, entity.visualRisks],
-  entity,
-  'risk',
-  '我方 Listing',
-)));
+const ownDecisionEntity = ownEntity || { asin: clean(ri.ownAsin), itemRole: 'own' };
+const runLevelOpportunityItems = insightItemsFrom(ownDecision.opportunities, ownDecisionEntity, 'opportunity', '批次综合分析');
+const itemLevelOwnOpportunityItems = ownEntities.flatMap((entity) => insightItemsFrom(
+    [entity.analysis?.opportunityPoints, entity.analysis?.opportunities, entity.opportunities, entity.visualOpportunities],
+    entity,
+    'opportunity',
+    '我方 Listing',
+  ));
+const ownOpportunityItems = mergeInsightItems(runLevelOpportunityItems.length ? runLevelOpportunityItems : itemLevelOwnOpportunityItems);
+const runLevelRiskItems = insightItemsFrom(ownDecision.risks, ownDecisionEntity, 'risk', '批次综合分析');
+const itemLevelOwnRiskItems = ownEntities.flatMap((entity) => insightItemsFrom(
+    [entity.analysis?.riskPoints, entity.analysis?.risks, entity.risks, entity.visualRisks],
+    entity,
+    'risk',
+    '我方 Listing',
+  ));
+const ownRiskItems = mergeInsightItems(runLevelRiskItems.length ? runLevelRiskItems : itemLevelOwnRiskItems);
 const explicitActions = normalizedEntities.flatMap((entity) => insightItemsFrom(
   [entity.analysis?.actionPlan, entity.analysis?.executionPlan, entity.analysis?.p0Actions, entity.analysis?.p1Actions, entity.analysis?.p2Actions],
   entity,
   'action',
   'AI 行动计划',
 ));
-const ownExplicitActions = explicitActions.filter((item) => item.itemRole === 'own');
+const runLevelActions = insightItemsFrom(ownDecision.actionPlan, ownDecisionEntity, 'action', '批次综合行动计划');
+const ownExplicitActions = [...runLevelActions, ...explicitActions.filter((item) => item.itemRole === 'own')];
 const actionItems = mergeInsightItems(ownExplicitActions.length ? ownExplicitActions : [
   ...ownOpportunityItems.slice(0, 6).map((item) => ({ ...item, kind: 'action', action: item.action || item.text, source: `机会 · ${item.source}` })),
   ...ownRiskItems.slice(0, 4).map((item) => ({ ...item, kind: 'action', action: item.action || item.text, source: `风险 · ${item.source}` })),
@@ -514,6 +527,9 @@ const ownTitleTermSet = new Set(topTerms([ownEntity?.title || ''], 30).map((item
 const titleOpportunityTerms = competitorTitleTerms.filter((item) => !ownTitleTermSet.has(normalizeTerm(item.term))).slice(0, 8).map((item) => `${item.term}${item.count > 1 ? ` ×${item.count}` : ''}`);
 const averageCompetitorTitleLength = competitorTitleRows.length ? Math.round(competitorTitleRows.reduce((sum, row) => sum + row.length, 0) / competitorTitleRows.length) : null;
 const titleAdvice = uniqueText([
+  marketSynthesis.titleStrategy?.recommendedDirection,
+  marketSynthesis.titleStrategy?.recommendedFormula,
+  marketSynthesis.titleStrategy?.ownGaps,
   ownTitleRow?.length > 75 ? '我方标题已超过日本站建议的 75 字符上限，优先压缩重复修饰词与弱相关词。' : '日本 Amazon 标题建议控制在 75 字符内，把核心品类词、关键场景和差异化规格放在前半段。',
   titleOpportunityTerms.length ? `竞品标题中可借鉴的高频表达：${titleOpportunityTerms.slice(0, 5).join(' / ')}。` : '竞品标题未形成明显高频词，建议以品类核心词 + 场景 + 关键规格建立稳定结构。',
   '避免把未经证实的功效、绝对化承诺或合规敏感表达堆入标题；这类内容应放到有证据支撑的图片/A+或五点描述中。',
@@ -524,6 +540,7 @@ const ownKeywordSet = new Set(ownKeywordTerms.map((term) => normalizeTerm(term))
 const competitorKeywordHotTerms = topTerms([...competitorEntities.map((entity) => entity.title), ...competitorKeywordTerms], 18).map((item) => ({ ...item, covered: ownKeywordSet.has(normalizeTerm(item.term)) || normalizeTerm(ownEntity?.title || '').includes(normalizeTerm(item.term)) }));
 const keywordOpportunityTerms = competitorKeywordHotTerms.filter((item) => !item.covered).slice(0, 10).map((item) => `${item.term}${item.count > 1 ? ` ×${item.count}` : ''}`);
 const keywordAdvice = uniqueText([
+  marketSynthesis.keywordStrategy?.mustVerify,
   ownKeywordTerms.length ? `我方已覆盖 ${ownKeywordTerms.length} 个结构化关键词，建议继续区分标题词、五点词和后台 Search Terms。` : '我方结构化关键词较少，建议先补齐核心品类词、使用场景词、材质/规格词和痛点词。',
   keywordOpportunityTerms.length ? `可优先补强竞品共现词：${keywordOpportunityTerms.slice(0, 8).join(' / ')}。` : '当前竞品关键词与我方覆盖差距不明显，建议通过 Review 痛点和搜索词报告继续补充长尾词。',
   '后台 Search Terms 更适合承接同义词、别称、拼写变体和低频长尾词，标题只保留能提升点击与相关性的高确定词。',
@@ -537,7 +554,7 @@ const median = (values) => {
 const scoreRank = ownEntity && scoreValue(ownEntity) !== null ? [...normalizedEntities].filter((entity) => scoreValue(entity) !== null).sort((a, b) => scoreValue(b) - scoreValue(a)).findIndex((entity) => entity.asin === ownEntity.asin) + 1 : null;
 const ownPriceMedian = ownEntity?.priceNumeric !== null && ownEntity?.priceNumeric !== undefined ? median(competitorEntities.map((entity) => entity.priceNumeric)) : null;
 const ownReviewMedian = ownEntity?.reviewCountNumeric !== null && ownEntity?.reviewCountNumeric !== undefined ? median(competitorEntities.map((entity) => entity.reviewCountNumeric)) : null;
-const decisionHeadline = ownEntity && scoreRank ? `我方综合竞争力排名第 ${scoreRank} / ${normalizedEntities.filter((entity) => scoreValue(entity) !== null).length}，需要优先补强转化证据与社会证明。` : '当前数据已完成结构化汇总，建议先处理高优先级机会，再补齐待确认证据。';
+const decisionHeadline = clean(marketSynthesis.marketConclusion?.headline) || (ownEntity && scoreRank ? `我方综合竞争力排名第 ${scoreRank} / ${normalizedEntities.filter((entity) => scoreValue(entity) !== null).length}，需要优先补强转化证据与社会证明。` : '当前数据已完成结构化汇总，建议先处理高优先级机会，再补齐待确认证据。');
 const decisionSignals = [
   scoreRank ? `综合评分排名：第 ${scoreRank} 位` : '综合评分：待确认',
   ownPriceMedian !== null ? `价格相对竞品中位数：${ownEntity.priceNumeric > ownPriceMedian ? '高于' : '低于'} ${Math.abs(Math.round((ownEntity.priceNumeric / ownPriceMedian - 1) * 100))}%` : '价格位置：待确认',
@@ -701,8 +718,12 @@ const productData = normalizedEntities.map((entity) => ({
     visibleClaims: result.visibleClaims,
     observations: result.observations,
     strengths: result.strengths,
+    referencePatterns: result.referencePatterns,
     opportunities: result.opportunities,
     risks: result.risks,
+    funnelStage: result.funnelStage,
+    claimEvidenceQuality: result.claimEvidenceQuality,
+    ocrConfidence: result.ocrConfidence,
     scores: result.scores,
   })),
   aplusStatus: entity.aplusStatus || '',
@@ -741,6 +762,7 @@ const reportDataV2 = {
   defaultVisibleAsins,
   categoryScoringModel: ri.categoryScoringModel || source.categoryScoringModel || null,
   dataQuality: ri.dataQuality || source.dataQuality || null,
+  marketSynthesis,
 };
 const safeJson = (value) => JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
 const v2ProductCards = normalizedEntities.map((entity) => `
@@ -766,7 +788,7 @@ const v2Gallery = normalizedEntities.map((entity) => {
     const visibleClaims = listHtml(result.visibleClaims, '未返回可验证主张');
     const visualAdvice = isOwn
       ? `<div class="visual-evidence-block"><h5>视觉分析与改版建议</h5>${listHtml(result.strengths, '未返回视觉优势')}${listHtml(result.opportunities, '未返回逐图建议')}${listHtml(result.risks, '未返回逐图风险')}</div>`
-      : `<div class="visual-evidence-block"><h5>视觉分析与借鉴建议</h5>${listHtml(result.strengths, '未返回可借鉴亮点')}${listHtml(result.opportunities, '未返回可迁移方向')}</div>`;
+      : `<div class="visual-evidence-block"><h5>视觉分析与借鉴建议</h5>${listHtml(uniqueText(result.referencePatterns, result.strengths), '未返回可借鉴亮点')}${listHtml(result.opportunities, '未返回可迁移方向')}${listHtml(result.risks, '未返回不可照搬或合规提示')}</div>`;
     return `<article class="visual-evidence-card"><div class="visual-evidence-media">${result.displayUrl ? `<img loading="lazy" src="${escapeHtml(result.displayUrl)}" alt="${escapeHtml(entity.asin)} ${escapeHtml(result.role)} ${Number(result.index) + 1}">` : '<div class="empty">图片未返回</div>'}<span class="visual-image-role">${escapeHtml(result.role || 'image')} #${Number(result.index) + 1}</span></div><div class="visual-evidence-body"><div class="visual-evidence-meta"><span>${escapeHtml(result.coreMessage || '未返回核心信息')}</span><span>清晰 ${escapeHtml(result.scores?.clarity ?? '-')} · 转化 ${escapeHtml(result.scores?.conversion ?? '-')}</span></div><div class="visual-evidence-columns"><div class="visual-evidence-block visual-evidence-ocr"><h5>文字识别（OCR）</h5>${ocrText}</div><div class="visual-evidence-block"><h5>画面证据</h5><div class="evidence-subblock"><h6>可见元素</h6>${visibleElements}</div><div class="evidence-subblock"><h6>可见主张</h6>${visibleClaims}</div></div>${visualAdvice}</div></div></article>`;
   }).join('');
   const evidenceDetails = entity.visualEvidence.length ? `<details class="evidence"><summary>展开逐图视觉分析与评分</summary><div class="visual-evidence-grid">${evidenceCards}</div></details>` : '';
@@ -784,7 +806,7 @@ ${titleKeywordSection}
 <section class="section" id="gallery"><div class="section-head"><div><h2>${icon('image', '图片与 A+ 证据墙')}</h2><p class="section-note">商品图与 A+ 图统一缓存到 MinIO，失败会显示占位并保留失败原因。</p></div></div>${v2Gallery}</section>
 <section class="section" id="insights"><div class="section-head"><div><h2>机会、风险与关键词</h2><p class="section-note">核心结论直接展开，详细证据在下方完整报告中按需查看。</p></div></div><div class="insight-grid"><div class="insight-card"><h3>差异化机会</h3>${listHtml(allOpportunities, '暂未返回结构化机会点')}</div><div class="insight-card"><h3>风险与约束</h3>${listHtml(allRisks, '暂未返回结构化风险点')}</div><div class="insight-card"><h3>Review / Q&A 痛点</h3>${listHtml(allPainPoints, '暂未返回可验证痛点')}</div></div><div class="asset-tags" style="margin-top:16px">${allKeywords.map((keyword) => `<span class="tag brand">${escapeHtml(keyword)}</span>`).join('') || '<span class="tag warn">关键词待补充</span>'}</div></section>
 <section class="section" id="full-report"><div class="section-head"><div><h2>完整专业分析报告</h2><p class="section-note">详细证据、逐图分析、原始 Review 等内容默认折叠，保留 Wiki 同源正文。</p></div><a href="#top">返回顶部 ↑</a></div><details><summary>展开完整正文与证据</summary><article class="markdown-body">${markdownHtml || '<div class="empty">最终报告正文未返回</div>'}</article></details></section>
-<footer class="footer"><span class="status-dot"></span> 报告由 Amazon competitor analysis v3.2 report-v2 renderer 生成。Run ID: ${escapeHtml(config.runId)}。</footer></main><script id="report-data" type="application/json">${safeJson(reportDataV2)}</script><script src="${escapeHtml(config.jsUrl)}" defer></script></body></html>` : legacyHtml;
+<footer class="footer"><span class="status-dot"></span> 报告由 Amazon competitor analysis v4.0 market-synthesis renderer 生成。Run ID: ${escapeHtml(config.runId)}。</footer></main><script id="report-data" type="application/json">${safeJson(reportDataV2)}</script><script src="${escapeHtml(config.jsUrl)}" defer></script></body></html>` : legacyHtml;
 const html = v2Html;
 
 const fnv1a = (value) => {

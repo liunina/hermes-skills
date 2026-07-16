@@ -3,7 +3,7 @@ name: amazon-competitor-analysis
 description: Analyze Amazon competitors through a registered n8n workflow skill. Use when the user asks to compare Amazon ASINs, product links, market positioning, price bands, review patterns, listing opportunities, image strategy, keywords, A+ page gaps, or publish a competitor report to Wiki.js and optionally notify Mattermost.
 metadata:
   hermes:
-    version: 0.5.2
+    version: 0.6.0
     author: liunina
     tags: [amazon, competitor, listing, ecommerce, n8n, workflow]
     category: ecommerce
@@ -90,6 +90,21 @@ The v2 topology now uses a v3.1 deterministic final-report renderer on top of th
 - Title suggestions must mention the Japan Amazon 75-character constraint and flag over-length candidates.
 - Final Wiki publishing is gated by `reportQa.passed`; dry-runs and QA-blocked reports must not publish.
 - The renderer safely rewrites unknown-sensitive phrases such as “无视频证据” into “当前抓取未返回视频证据” when A+/video status is unknown.
+
+## v4 Evidence And Market Synthesis
+
+The production v2 topology now uses a v4 prompt architecture while retaining one user-facing entrypoint.
+
+- Gemini uses `amazon-visual-v4` / `amazon-image-analysis-v4`. Main images, gallery images, and A+ assets have role-specific criteria. Competitor assets return `borrowablePatterns`, `transferableExpression`, `ownProductImplication`, and `doNotCopy`; owned assets return diagnostics and revision implications.
+- The single-item model uses `amazon-item-evidence-v4`. It creates an evidence-bounded ASIN package with `titleAnalysis`, Review theme counts, `evidenceRefs`, structured opportunities/risks, and keyword evidence. It no longer creates a category scoring model or cross-competitor ranking.
+- `Validate first AI JSON` checks the business schema, not only `JSON.parse`. Invalid output retries with the original input, validation errors, and invalid completion without repeating Decodo or Gemini.
+- After all item rows are terminal, the orchestrator makes one run-level synthesis call using `amazon-run-synthesis-v1`. This call creates one category rubric, scores every successful ASIN with identical dimension keys and weights, and produces owned-product opportunities, risks, title/keyword strategy, image/A+ strategy, Review strategy, and a traceable action plan.
+- `Finalize run-level synthesis` maps score dimensions by exact key only, computes coverage and weighted totals deterministically, and keeps scores null when observed coverage is below 60%. The old fuzzy/index dimension mapping is no longer used.
+- Run-level synthesis failure does not abort rendering. Wiki and HTML fall back to deterministic item-level sections and expose the synthesis status in `reportInput.marketSynthesis`.
+- HTML executive opportunity/risk counts use run-level `ownDecision` as the authoritative source. Item-level owned insights are only a fallback, so counts always map to visible concrete items.
+- Current production defaults are `gpt-5.5` for item and run-level analysis and `gemini-2.5-flash` for visual analysis. Change models through `scripts/provision_amazon_prompt_architecture_v4.mjs` so node model IDs, cache metadata, and prompt/schema versions stay aligned.
+- Final-analysis hashing ignores visual transport diagnostics such as `modelReturnedImageId`, cache-hit counters, and request metadata. Fresh Gemini output and an equivalent cached visual result therefore reuse the same item-analysis cache entry.
+- Normal 4-8 competitor runs should remain async/hybrid. A first-time image pass plus run-level synthesis commonly exceeds a 120-second synchronous caller budget.
 
 ## Defaults
 

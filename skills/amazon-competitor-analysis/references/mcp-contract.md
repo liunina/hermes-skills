@@ -29,6 +29,23 @@ The production transport points to the v2 wrapper. The legacy wrapper remains re
 6. **HTML / MinIO publishing** optionally converts the final report and structured input into a responsive visual HTML report, downloads selected Listing/A+ images, stores shared CSS and JSON artifacts, and preserves an immutable snapshot per `runId`.
 7. **Query run v2** is a read-only status endpoint that accepts `runId` and returns the run row, item rows, failure reasons, Wiki links, HTML links, and artifact status.
 
+### v4 AI Analysis Contract
+
+The workflow IDs and public v2 wrapper remain stable, but AI analysis is split into two scopes:
+
+1. **Item evidence package (`amazon-item-evidence-v4`)**: each owned or competitor ASIN is analyzed independently and stored in `amazon_competitor_analysis_items`. It contains grounded Listing/Review/Q&A/visual evidence, title analysis, keyword candidates, role-aware opportunities/risks, and evidence references. It does not contain a final competitive rank.
+2. **Run-level synthesis (`amazon-run-synthesis-v1`)**: after the item barrier, one model call receives compact item evidence packages. It produces the canonical category scoring model, comparable scorecards for every successful ASIN, market conclusion, owned-product decisions, and the P0/P1/P2 plan.
+
+Required run-level behavior:
+
+- Every successful ASIN appears exactly once in `scorecards`.
+- Every scorecard uses the exact dimension keys and order from `categoryScoringModel`.
+- Missing evidence produces `score: null`, never `0`.
+- Weighted totals are recomputed deterministically after model output.
+- `ownDecision.opportunities`, `ownDecision.risks`, and `ownDecision.actionPlan` include evidence references.
+- Failure of run-level synthesis degrades to the deterministic renderer and must not discard successful item rows.
+- The final run row persists `marketSynthesis` inside `inputJson_object` through `reportInput`.
+
 The current v3 implementation adds three persistent cache layers without changing the public v2 wrapper:
 
 1. **Decodo Listing cache** stores normalized Listing, Review/Q&A evidence, fetch status, stale window, and failure details.
