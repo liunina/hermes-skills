@@ -578,13 +578,62 @@ const evidenceAnchor = (item) => {
   const sourceAsin = uniqueText(item.sourceAsins, item.asins, item.asin).find((value) => /^B0[A-Z0-9]{8}$/i.test(value)) || ownEntity?.asin || '';
   const visualRef = refs.map((value) => clean(value).match(/visualAnalysis\.results\[(\d+)\]/i)).find(Boolean);
   if (visualRef && sourceAsin) return `#asin-${anchorSafe(sourceAsin)}-image-${Number(visualRef[1]) + 1}`;
-  if (refs.some((value) => /reviewMining|review|qa/i.test(value))) return '#review-insights';
   if (refs.some((value) => /listing\.title|titleAnalysis|keywords/i.test(value))) return '#listing-text';
   if (refs.some((value) => /listing\.(price|rating|reviewCount|imageCount|aplusStatus|videoStatus)/i.test(value))) return '#matrix';
+  if (refs.some((value) => /reviewMining|review|qa/i.test(value))) return '#review-insights';
   if (/图片|A\+|视觉/.test(`${item.source}${item.text}`)) return sourceAsin ? `#asin-${anchorSafe(sourceAsin)}` : '#gallery';
   return '#full-report';
 };
-const insightItemHtml = (item, options = {}) => `<li class="decision-insight-item"${item.id ? ` id="${escapeHtml(anchorSafe(item.id))}"` : ''}><div class="decision-insight-top"><span class="priority-badge priority-${item.priority === '待确认' ? 'unknown' : item.priority.toLowerCase()}">${escapeHtml(item.priority)}</span><strong>${escapeHtml(item.text)}</strong></div><div class="decision-insight-meta"><span>${escapeHtml(item.source)}${item.asins?.length ? ` · ${escapeHtml(item.asins.join(', '))}` : ''}</span><span>证据置信度：${confidenceLabel(item.confidence)}</span></div>${item.evidence ? `<p class="decision-insight-evidence">证据：${escapeHtml(item.evidence)}</p>` : ''}${options.action && item.action ? `<p class="decision-insight-action">行动：${escapeHtml(item.action)}</p>` : ''}<a class="decision-insight-link" href="${evidenceAnchor(item)}">定位具体证据 →</a></li>`;
+const evidenceEntities = (item) => uniqueText(item.sourceAsins, item.asins, item.asin)
+  .filter((value) => /^B0[A-Z0-9]{8}$/i.test(value))
+  .map((asin) => normalizedEntities.find((entity) => entity.asin.toUpperCase() === asin.toUpperCase()))
+  .filter(Boolean);
+const evidenceEntityLabel = (entity) => `${entity.itemRole === 'own' ? '我方' : '竞品'} ${entity.asin}`;
+const evidenceValueSummary = (entities, field) => entities
+  .map((entity) => `${evidenceEntityLabel(entity)}：${field === 'price' ? entity.price : field === 'rating' ? entity.rating : entity.reviewCount}`)
+  .join('；');
+const humanizeEvidenceRef = (ref, item) => {
+  const text = clean(ref);
+  const entities = evidenceEntities(item);
+  const lower = text.toLowerCase();
+  const reviewMatch = text.match(/(?:reviewEvidence|reviewMining)\.reviews?\[(\d+)\]/i);
+  const visualMatch = text.match(/visualAnalysis\.results\[(\d+)\]/i);
+  if (reviewMatch) {
+    const context = /清洁|集尘|毛屑|堵塞|倒屑/.test(`${item.text} ${item.action}`) ? '，用于验证清洁维护相关痛点' : '，用于归纳真实使用反馈';
+    return `真实 Review 样本第 ${Number(reviewMatch[1]) + 1} 条${context}`;
+  }
+  if (visualMatch) return `第 ${Number(visualMatch[1]) + 1} 张商品图 / A+ 图视觉分析`;
+  if (/listing\.(price|pricenumber)/i.test(lower)) {
+    const summary = evidenceValueSummary(entities, 'price');
+    return `Listing 抓取价格${summary ? `（${summary}）` : ''}`;
+  }
+  if (/listing\.rating/i.test(lower)) {
+    const summary = evidenceValueSummary(entities, 'rating');
+    return `Listing 抓取评分${summary ? `（${summary}）` : ''}`;
+  }
+  if (/listing\.(reviewcount|review_count)/i.test(lower)) {
+    const summary = evidenceValueSummary(entities, 'reviewCount');
+    return `Listing 抓取评论数${summary ? `（${summary}）` : ''}`;
+  }
+  if (/listing\.title|titleanalysis/i.test(lower)) return 'Listing 标题原文与长度 / 关键词分析';
+  if (/listing\.imagecount/i.test(lower)) return 'Listing 商品图数量字段';
+  if (/aplus|enhanced_brand|enhancedbrand/i.test(lower)) return 'Listing A+ 状态与图片字段';
+  if (/reviewmining|reviewevidence|reviews?|qa/i.test(lower)) return '真实 Review / Q&A 反馈样本';
+  if (/^B0[A-Z0-9]{8}$/i.test(text)) return `Listing 数据：${text}`;
+  return text && !/[.\[\]_]/.test(text) ? text : '结构化 Listing 数据';
+};
+const humanEvidence = (item) => {
+  const refs = uniqueText(item.evidenceRefs, item.evidence);
+  const technicalRefs = refs.filter((value) => !/^B0[A-Z0-9]{8}$/i.test(value));
+  const selected = technicalRefs.length ? technicalRefs : refs;
+  return uniqueText(...selected.map((ref) => humanizeEvidenceRef(ref, item))).slice(0, 3).join('；');
+};
+const insightItemHtml = (item, options = {}) => {
+  const refs = uniqueText(item.evidenceRefs, item.evidence);
+  const readableEvidence = humanEvidence(item);
+  const rawEvidence = refs.join('；');
+  return `<li class="decision-insight-item"${item.id ? ` id="${escapeHtml(anchorSafe(item.id))}"` : ''}><div class="decision-insight-top"><span class="priority-badge priority-${item.priority === '待确认' ? 'unknown' : item.priority.toLowerCase()}">${escapeHtml(item.priority)}</span><strong>${escapeHtml(item.text)}</strong></div><div class="decision-insight-meta"><span>${escapeHtml(item.source)}${item.asins?.length ? ` · ${escapeHtml(item.asins.join(', '))}` : ''}</span><span>证据置信度：${confidenceLabel(item.confidence)}</span></div>${readableEvidence ? `<p class="decision-insight-evidence"${rawEvidence ? ` title="原始字段：${escapeHtml(rawEvidence)}"` : ''}><span class="decision-insight-evidence-label">证据</span><span>${escapeHtml(readableEvidence)}</span></p>` : ''}${options.action && item.action ? `<p class="decision-insight-action"><span class="decision-insight-action-label">行动</span><span>${escapeHtml(item.action)}</span></p>` : ''}<a class="decision-insight-link" href="${evidenceAnchor(item)}">定位具体证据 →</a></li>`;
+};
 const insightCardHtml = (id, title, items, kind, emptyText) => {
   const top = items.slice(0, 3);
   const rest = items.slice(3);
@@ -833,7 +882,7 @@ const v2Gallery = normalizedEntities.map((entity) => {
   const isOwn = entity.itemRole === 'own';
   const figures = entity.images.map((image) => `<figure><img loading="lazy" src="${escapeHtml(image.displayUrl)}" alt="${escapeHtml(entity.asin + ' ' + image.assetRole)}"><figcaption><span class="asset-role">${escapeHtml(image.assetRole === 'aplus' ? 'A+ 图' : image.assetRole === 'main' ? '主图' : '商品图')}</span><span>${image.sourceFetchStatus === 'placeholder' ? '占位图' : 'MinIO 已缓存'}</span></figcaption></figure>`).join('');
   const visualSummary = isOwn
-    ? `<div class="visual-summary visual-summary-own"><div class="visual-summary-head"><div><span class="eyebrow">我方素材诊断</span><strong>${entity.visualAnalyzedImageCount || entity.visualEvidence.length ? `已分析 ${entity.visualAnalyzedImageCount || entity.visualEvidence.length} 张` : '未返回逐图分析'}</strong></div><span class="tag ${entity.visualFailedImageCount ? 'warn' : 'good'}">缓存命中 ${entity.visualCacheHitCount || 0} · 失败 ${entity.visualFailedImageCount || 0}</span></div><div class="visual-summary-grid"><div><h4>核心观察</h4>${listHtml(entity.visualObservations, '暂无可验证的视觉观察')}</div><div><h4>改版建议</h4>${listHtml(entity.visualOpportunities, '暂无结构化视觉建议')}</div><div><h4>风险 / 待补证据</h4>${listHtml(entity.visualRisks, '暂无结构化视觉风险')}</div></div></div>`
+    ? `<div class="visual-summary visual-summary-own"><div class="visual-summary-head"><div><span class="eyebrow">我方素材诊断</span><strong>${entity.visualAnalyzedImageCount || entity.visualEvidence.length ? `已分析 ${entity.visualAnalyzedImageCount || entity.visualEvidence.length} 张` : '未返回逐图分析'}</strong></div><span class="tag ${entity.visualFailedImageCount ? 'warn' : 'good'}">缓存命中 ${entity.visualCacheHitCount || 0} · 失败 ${entity.visualFailedImageCount || 0}</span></div><div class="visual-summary-grid"><div><h4 class="visual-heading-observation">核心观察</h4>${listHtml(entity.visualObservations, '暂无可验证的视觉观察')}</div><div><h4 class="visual-heading-opportunity">改版建议</h4>${listHtml(entity.visualOpportunities, '暂无结构化视觉建议')}</div><div><h4 class="visual-heading-risk">风险 / 待补证据</h4>${listHtml(entity.visualRisks, '暂无结构化视觉风险')}</div></div></div>`
     : `<div class="visual-summary visual-summary-reference"><div class="visual-summary-head"><div><span class="eyebrow">竞品素材参考</span><strong>${entity.visualAnalyzedImageCount || entity.visualEvidence.length ? `已提炼 ${entity.visualAnalyzedImageCount || entity.visualEvidence.length} 张素材` : '未返回逐图分析'}</strong></div><span class="tag good">用于借鉴，不作缺陷判定</span></div><p class="reference-note">从竞品中提炼可迁移的构图、信息组织和卖点表达方式，供我方 Listing 改版参考。</p><div class="visual-summary-grid visual-summary-grid-reference"><div><h4>值得借鉴的亮点</h4>${listHtml(entity.visualStrengths.length ? entity.visualStrengths : entity.visualObservations, '暂无可验证的视觉亮点')}</div><div><h4>可迁移的表达方式</h4>${listHtml(entity.visualOpportunities, '暂无结构化借鉴方向')}</div></div></div>`;
   const evidenceDetails = entity.visualEvidence.length ? `<details class="evidence visual-evidence-details" data-visual-asin="${escapeHtml(entity.asin)}"><summary>展开逐图视觉分析与评分 <span class="lazy-count">· ${entity.visualEvidence.length} 张</span></summary><div class="visual-evidence-grid" data-visual-evidence-grid><div class="empty compact">展开后加载逐图证据</div></div></details>` : '';
   return `<div class="gallery-group" id="asin-${escapeHtml(anchorSafe(entity.asin))}" data-asin="${escapeHtml(entity.asin)}"><h3 class="gallery-title"><span class="tag ${isOwn ? 'brand' : ''}">${isOwn ? '我方' : '竞品'}</span>${escapeHtml(entity.asin)} · 商品图 / A+ 图</h3>${figures ? `<div class="gallery gallery-scroll" tabindex="0" aria-label="${escapeHtml(entity.asin)} 商品图和 A+ 图">${figures}</div>` : '<div class="empty">数据源未返回可缓存图片</div>'}${visualSummary}${evidenceDetails}</div>`;
