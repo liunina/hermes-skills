@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { access, copyFile, cp, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { access, copyFile, cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -89,6 +89,50 @@ async function copyBundle(installDir) {
   await cp(join(repoRoot, 'skills'), join(installDir, 'skills'), { recursive: true, force: true });
 }
 
+async function loadBusinessSkillManifests() {
+  const registryDir = join(repoRoot, 'workflow-registry');
+  const files = await readdir(registryDir);
+  const manifests = [];
+
+  for (const file of files.sort()) {
+    if (!file.endsWith('.json') || file === 'schema.json') continue;
+    const manifest = JSON.parse(await readFile(join(registryDir, file), 'utf8'));
+    if (manifest.manifestType === 'business-skill' && manifest.skillPath) {
+      manifests.push(manifest);
+    }
+  }
+
+  return manifests;
+}
+
+async function resolveCodexSkillTargetRoot() {
+  const userTargetRoot = join(home, '.agents', 'skills');
+  try {
+    await mkdir(userTargetRoot, { recursive: true });
+    await access(userTargetRoot, fsConstants.W_OK);
+    return userTargetRoot;
+  } catch (error) {
+    const repoTargetRoot = join(repoRoot, '.agents', 'skills');
+    await mkdir(repoTargetRoot, { recursive: true });
+    console.warn(`Cannot write ${userTargetRoot}: ${error.message}`);
+    console.warn(`Installing repo-scoped Codex skills instead: ${repoTargetRoot}`);
+    return repoTargetRoot;
+  }
+}
+
+async function installCodexSkills() {
+  const targetRoot = await resolveCodexSkillTargetRoot();
+
+  const manifests = await loadBusinessSkillManifests();
+  for (const manifest of manifests) {
+    const sourceDir = join(repoRoot, dirname(manifest.skillPath));
+    const targetDir = join(targetRoot, manifest.id);
+    await rm(targetDir, { recursive: true, force: true });
+    await cp(sourceDir, targetDir, { recursive: true, force: true });
+    console.log(`Installed Codex skill: ${targetDir}`);
+  }
+}
+
 async function installDependencies(installDir) {
   if (await exists(join(installDir, 'package-lock.json'))) {
     run('npm', ['ci', '--omit=dev'], installDir);
@@ -162,7 +206,10 @@ async function upsertCodexConfig(installDir, nodeCommand) {
   const section = `[mcp_servers.${SERVER_NAME}]
 command = ${JSON.stringify(nodeCommand)}
 args = [${JSON.stringify(join(installDir, 'server.mjs'))}]
-startup_timeout_sec = 120`;
+cwd = ${JSON.stringify(installDir)}
+enabled = true
+startup_timeout_sec = 120
+tool_timeout_sec = 900`;
   await backupIfExists(file);
   await writeFile(file, upsertTomlSection(current, `[mcp_servers.${SERVER_NAME}]`, section), 'utf8');
 }
@@ -177,6 +224,7 @@ async function configureClient(client, installDir, nodeCommand) {
   const targets = client === 'all' ? ['codex', 'claude', 'cursor', 'generic'] : [client];
   for (const target of targets) {
     if (target === 'codex') {
+      await installCodexSkills();
       await upsertCodexConfig(installDir, nodeCommand);
       console.log(`Configured Codex: ${join(home, '.codex', 'config.toml')}`);
     } else if (target === 'claude') {

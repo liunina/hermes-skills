@@ -1,9 +1,9 @@
 ---
 name: amazon-competitor-analysis
-description: Analyze Amazon competitors through a registered n8n workflow skill. Use when the user asks to compare Amazon ASINs, product links, market positioning, price bands, review patterns, listing opportunities, keywords, A+ page gaps, or publish a competitor report to Wiki.js and optionally notify Mattermost.
+description: Analyze Amazon competitors through a registered n8n workflow skill. Use when the user asks to compare Amazon ASINs, product links, market positioning, price bands, review patterns, listing opportunities, image strategy, keywords, A+ page gaps, or publish a competitor report to Wiki.js and optionally notify Mattermost.
 metadata:
   hermes:
-    version: 0.1.0
+    version: 0.7.0
     author: liunina
     tags: [amazon, competitor, listing, ecommerce, n8n, workflow]
     category: ecommerce
@@ -22,14 +22,113 @@ For trigger regression examples, read `../../docs/evals/amazon-competitor-analys
 2. Call `run_workflow_skill` with `skillId: "amazon-competitor-analysis"` and the structured input.
 3. Keep `dryRun: true`, `publishWiki: false`, and `notifyMattermost: false` for first runs or debugging.
 4. Only set `publishWiki: true` or `notifyMattermost: true` when the user explicitly asks for those side effects. Also pass `confirmSideEffects: true`.
+5. When the user asks to publish the final Wiki report, also set `publishHtml: true` unless they explicitly opt out of the visual HTML artifact. HTML publishing is a separate side effect and also requires `confirmSideEffects: true`.
+
+## v2 Workflow
+
+The registry uses the v2 architecture for larger batches and normal production calls. The legacy wrapper remains available only as rollback.
+
+- Keep one user-facing entrypoint.
+- Use `mode: "hybrid"` by default. The current wrapper treats hybrid as async unless `mode: "sync"` is explicitly requested, so callers should expect a fast `202` response with a `runId` and then poll/query by `runId`.
+- Store every competitor result in `amazon_competitor_analysis_items` with the unique key `runId / ownAsin / competitorAsin`.
+- When `ownAsin` / `ownProductUrl` is present, analyze the owned Listing through the same single-item subworkflow by default (`analyzeOwnListing: true`). Store it in the same item table with `competitorAsin = ownAsin` and `itemRole: "own"` inside `analysisJson_object`, but do not include it in `competitorCount`.
+- Store run-level state in `amazon_competitor_analysis_runs` with the unique key `runId`.
+- The orchestrator dispatches single-competitor jobs with `Execute Workflow` in `mode: "each"` and `waitForSubWorkflow: false`, then polls `amazon_competitor_analysis_items` until all rows are terminal or the orchestration timeout is reached.
+- Keep single-item outputs compact and strict JSON, including evidence-bounded `reviewMining`. Use real Review samples, rating distribution, and Q&A text returned by Decodo; when Q&A text is unavailable, mark it unavailable/metadata-only and never invent questions. Make the final Wiki report a professional long-form report with owned-Listing baseline, field-by-field gaps, real Review/Q&A pain themes, market conclusion, competitor matrix, price/spec band, selling-point patterns, image/A+ funnel, keyword/title formula, compliance risks, Listing rewrite suggestions, and P0/P1/P2 action plan.
+- Use `[工具] Query Amazon competitor analysis run v2` / the query endpoint to read run status, item rows, failure reasons, and Wiki links by `runId`.
+- Publish the final report to `home/areas/ecommerce/amazon/competitor-analysis/{ownAsin}` when `publishWiki` is explicitly confirmed.
+- Publish per-competitor child pages to `home/areas/ecommerce/amazon/competitor-analysis/{ownAsin}/items/{competitorAsin}` when `publishItemWiki` is explicitly confirmed.
+- Publish the owned Listing baseline child page to `home/areas/ecommerce/amazon/competitor-analysis/{ownAsin}/own-listing` when `publishItemWiki` is explicitly confirmed.
+- If one competitor fails or times out, continue the run, save the failure reason, and include it in `失败/待补抓`.
+
+## v3 Three-Layer Cache
+
+The v2 workflow topology now uses a v3 cache policy so repeated batches do not repeatedly spend Decodo, Gemini, and final-analysis tokens on unchanged inputs.
+
+- `prefer_cache` is the production default: reuse fresh positive or negative cache entries, fetch misses, and allow a usable stale Listing fallback when Decodo fails.
+- `refresh` skips reads and regenerates each layer, then updates cache rows.
+- `cache_only` never calls Decodo, Gemini, or the final analysis model. Missing layers return explicit cache-miss failures.
+- `bypass` skips both cache reads and cache writes while still calling live services.
+- Default positive TTLs are 24 hours for Decodo Listing data, 720 hours for Gemini per-image visual analysis, and 24 hours for final strict JSON analysis.
+- Listing stale fallback is enabled by default for up to 168 hours through `allowStaleOnError` and `staleMaxAgeHours`.
+- Negative cache entries are intentionally shorter: transient Listing failures use 10 minutes, non-transient Listing failures use 24 hours, Gemini failures use error-specific TTLs from 15 minutes to 6 hours by default, and final-analysis failures use 2 minutes.
+- Cache keys are deterministic: Listing uses marketplace/ASIN/geo/operation/schema; images use normalized image URL plus model/prompt/schema; final analysis uses marketplace/ASIN plus Listing hash, visual hash, prompt/model/locale/schema.
+- If the first final-analysis response is `invalid_json`, retry only the final AI step with a compact prompt. Do not repeat Decodo or Gemini.
+- Per-item `analysisJson_object.cache` records cache mode, Listing decision, Gemini hit/request counts, final-analysis decision, and whether the final result came from cache or OpenAI.
+- Maintenance workflow `[维护] Clean Amazon competitor analysis caches` runs daily at 03:30 in `Asia/Tokyo`. Manual/subworkflow calls default to dry-run and require both `dryRun: false` and `confirmDelete: true` for deletion.
+
+## HTML / MinIO Report Publishing
+
+The production orchestrator can publish a responsive visual HTML report in addition to Wiki.js through `[子工作流] Publish Amazon competitor HTML report` (`bgSmA8Iog0iTVePj`).
+
+- Enable it with `publishHtml: true`; keep it false for dry-runs and read-only analysis.
+- Store the latest report at `amazon/competitor-analysis/{ownAsin}/index.html`.
+- Store immutable run artifacts under `amazon/competitor-analysis/{ownAsin}/runs/{runId}/`, including `index.html`, `manifest.json`, `report-data.json`, and cached Listing/A+ images.
+- The production default is the v2 evidence-wall renderer. The legacy v1 CSS remains available at `amazon/competitor-analysis/_assets/css/report-v1.css` for rollback only.
+- Store v2 local assets under `amazon/competitor-analysis/_assets/report-v2/`: `css/report-v2.css`, `js/report-v2.js`, `icons/report-icons.svg`, and the Inter font files. The v2 report references these MinIO assets instead of inline third-party resources.
+- Use bucket `amazon-reports` and the standard public base URL `https://data.dinve.com/amazon-reports` by default.
+- Default `htmlUseShortUrl: true` because the production reverse proxy now maps `/amazon/competitor-analysis/*` to `/amazon-reports/amazon/competitor-analysis/*`. Callers may explicitly set it to false when diagnosing the native bucket URL.
+- MinIO must grant anonymous read-only access to the `amazon/competitor-analysis/` object prefix, or an authenticated/reverse-proxy delivery layer must serve it. Never grant anonymous write access.
+- Image download failures create visible placeholder SVGs and do not abort the report; artifact upload failures return `partial_success` or `failed` with per-object reasons.
+- The query workflow returns `htmlReportUrl`, `htmlArchiveUrl`, `htmlPublishStatus`, `htmlPublishError`, and `artifacts` for completed runs.
+
+## v3.1 Report Quality Renderer
+
+The v2 topology now uses a v3.1 deterministic final-report renderer on top of the v3 cache layers.
+
+- Final Wiki reports render product main images directly in the owned baseline and competitor overview using inline image tags. Per-item child pages render a larger main image above the structured JSON.
+- Single-item rows store `listing.mainImageUrl`, `listing.images`, `listing.aplusImages`, and `listing.assetCompleteness` inside `analysisJson_object`; no extra Data Table columns are required.
+- `assetCompleteness` distinguishes `present`, `absent`, `partial`, `unknown_fetch_failed`, and `unknown_not_supported`. Do not rewrite `unknown_*` as “not found”.
+- For Decodo Amazon Listing responses, treat `description` images whose URL contains `aplus-media-library-service-media` or `/aplus-media/` as A+ image evidence when dedicated `aplus` / `a_plus` / `aplus_content` / `enhanced_brand_content` fields are missing. In that case set `aplusStatus: "present"`, preserve the URLs in `listing.aplusImages`, and send up to 4 of them to Gemini.
+- Recognize Decodo's `has_videos` field as video evidence metadata. A returned `false` means video status can be `absent`; a missing video field remains `unknown_not_supported`.
+- The main report is business-readable Chinese. Japanese source text may be quoted as evidence, but should be wrapped in `“”` and not mixed into Chinese explanatory sentences.
+- Target audience and usage scenarios must be separate report subsections.
+- The v2 HTML report includes an “图片与 A+ 证据墙”: every ASIN shows actual product/A+ images in a single horizontal scroll row, visual-analysis status, cache-hit/failed counts, and an expandable per-image Gemini analysis. Owned assets use diagnostic sections; competitor assets use reference sections (“值得借鉴的亮点 / 可迁移的表达方式”) and must not be framed as defects. Each image detail keeps “文字识别（OCR）”, “画面证据（可见元素 / 可见主张）”, and “视觉分析与改版建议 / 借鉴建议” as separate blocks. If Gemini has no usable result, the UI must show the evidence limitation rather than fabricate advice.
+- The v2 “经营决策总览” is an actionable executive summary, not a bare count of opportunities and risks. It exposes `decisionSummary` (headline, competitive signals, data-quality context), Top 3 opportunity/risk items, priority badges (`P0`/`P1`/`P2`/`待确认`), evidence confidence, ASIN/source attribution, evidence anchors, and a collapsed list of all deduplicated items. It also renders a priority-bucketed action plan so every displayed count can be traced to a concrete item and downstream evidence section.
+- The report-v2 renderer safely converts allowlisted remote Markdown/HTML `<img>` tags into real lazy-loaded images in the full report, while escaping all other raw HTML. Shared CSS, JavaScript, icons, and fonts are published as reusable MinIO assets.
+- Main Wiki reports may summarize image/A+/video strategy; per-image OCR/Gemini details remain in child pages and Data Table JSON, while the v2 HTML evidence wall renders the structured visual fields for decision-making.
+- Title suggestions must mention the Japan Amazon 75-character constraint and flag over-length candidates.
+- Final Wiki publishing is gated by `reportQa.passed`; dry-runs and QA-blocked reports must not publish.
+- The renderer safely rewrites unknown-sensitive phrases such as “无视频证据” into “当前抓取未返回视频证据” when A+/video status is unknown.
+
+## v4 Evidence And Market Synthesis
+
+The production v2 topology now uses a v4 prompt architecture while retaining one user-facing entrypoint.
+
+- Gemini uses `amazon-visual-v4` / `amazon-image-analysis-v4`. Main images, gallery images, and A+ assets have role-specific criteria. Competitor assets return `borrowablePatterns`, `transferableExpression`, `ownProductImplication`, and `doNotCopy`; owned assets return diagnostics and revision implications.
+- The single-item model uses `amazon-item-evidence-v4`. It creates an evidence-bounded ASIN package with `titleAnalysis`, Review theme counts, `evidenceRefs`, structured opportunities/risks, and keyword evidence. It no longer creates a category scoring model or cross-competitor ranking.
+- `Validate first AI JSON` checks the business schema, not only `JSON.parse`. Invalid output retries with the original input, validation errors, and invalid completion without repeating Decodo or Gemini.
+- After all item rows are terminal, the orchestrator makes one run-level synthesis call using `amazon-run-synthesis-v1`. This call creates one category rubric, scores every successful ASIN with identical dimension keys and weights, and produces owned-product opportunities, risks, title/keyword strategy, image/A+ strategy, Review strategy, and a traceable action plan.
+- `Finalize run-level synthesis` maps score dimensions by exact key only, computes coverage and weighted totals deterministically, and keeps scores null when observed coverage is below 60%. The old fuzzy/index dimension mapping is no longer used.
+- Run-level synthesis failure does not abort rendering. Wiki and HTML fall back to deterministic item-level sections and expose the synthesis status in `reportInput.marketSynthesis`.
+- HTML executive opportunity/risk counts use run-level `ownDecision` as the authoritative source. Item-level owned insights are only a fallback, so counts always map to visible concrete items.
+- Current production defaults are `gpt-5.5` for item and run-level analysis and `gemini-2.5-flash` for visual analysis. Change models through `scripts/provision_amazon_prompt_architecture_v4.mjs` so node model IDs, cache metadata, and prompt/schema versions stay aligned.
+- Final-analysis hashing ignores visual transport diagnostics such as `modelReturnedImageId`, cache-hit counters, and request metadata. Fresh Gemini output and an equivalent cached visual result therefore reuse the same item-analysis cache entry.
+- Normal 4-8 competitor runs should remain async/hybrid. A first-time image pass plus run-level synthesis commonly exceeds a 120-second synchronous caller budget.
 
 ## Defaults
 
 - If the user has no owned ASIN, leave `ownAsin` and `ownProductUrl` empty.
+- Default `analyzeOwnListing` to `true` when an owned ASIN/URL is supplied. Set it to `false` only when the caller explicitly wants competitor-only analysis.
 - If the user omits `productIdea` or `targetAudience`, leave them empty and let the workflow infer context.
 - Use `competitorText` for raw ASINs, messy links, copied notes, or multi-line user input.
 - Use `competitorUrls` for normalized Amazon product URLs.
-- Keep `maxCompetitors` small at first. Start with `1` to reduce timeout and API cost risk.
+- Default `maxCompetitors` is 8 for normal production use. Start with `1` only for debugging or cost-sensitive validation.
+- Prefer `mode: "hybrid"` and use `runId` to track async runs.
+- Default `cacheMode` to `prefer_cache`; use `refresh` only for an intentional refetch, `cache_only` for zero-external-call diagnostics, and `bypass` for live diagnostics that must not read or write cache.
+- Image recommendations follow a fixed conversion framework: the main image attracts clicks, feature images explain selling points, and detail images reduce buyer doubts.
+- The single-item workflow sends up to 8 product images and 4 A+ images to Gemini for pixel-bounded, per-image visual analysis. Treat failed images as unavailable evidence and never infer invisible content from the URL or filename.
+- Use `reportQa` to decide whether a generated final report is publishable. If `reportQa.passed` is false, inspect `blockingIssues`, fix the workflow/report data, and rerun before enabling Wiki publish.
+- Default `publishHtml` to `false` in generic calls. When the user asks to publish the final Wiki report, explicitly send both `publishWiki: true` and `publishHtml: true` unless they opt out of HTML.
+
+## v4.1 Evidence-Linked Delivery
+
+- The deterministic Wiki renderer is `v4.1-evidence-linked-renderer`; it consumes the same structured `reportInput` as the HTML publisher and does not inject category-specific fallback copy.
+- `reportQa` blocks Wiki publication for category-template leakage, title-rule contradictions, malformed image markup, unknown A+/video states rewritten as definite absence, unrendered AI actions, or actions without evidence references.
+- The latest Wiki page remains at `home/areas/ecommerce/amazon/competitor-analysis/{ownAsin}`. Every run also has an immutable archive at `.../{ownAsin}/runs/{runId}`; query output exposes `wikiArchiveLink` together with the latest link.
+- HTML evidence links resolve to exact anchors such as `#asin-{ASIN}`, `#asin-{ASIN}-image-{N}`, `#review-insights`, `#listing-text`, and `#matrix`. Image-level Gemini cards and the full Wiki body are constructed when expanded, keeping the initial DOM bounded for 4-8 competitor runs.
+- The HTML report exposes data-coverage bars, category score-dimension heatmaps, owned-product image/A+ revision blueprints, and owner/acceptance metrics for P0/P1/P2 actions. Competitor image sections are framed as borrowable references; owned assets are framed as diagnostics.
+- Competitor input should use one ASIN or URL per line (or comma/semicolon separated). Space-separated ASINs are not treated as separate items by the n8n normalizer.
 
 ## Input Example
 
@@ -43,6 +142,7 @@ For trigger regression examples, read `../../docs/evals/amazon-competitor-analys
     "maxCompetitors": 1,
     "dryRun": true,
     "publishWiki": false,
+    "publishHtml": false,
     "notifyMattermost": false
   }
 }
@@ -53,6 +153,8 @@ For trigger regression examples, read `../../docs/evals/amazon-competitor-analys
 These fields trigger side effects and require explicit user approval:
 
 - `publishWiki`: publish or update a Wiki.js report.
+- `publishItemWiki`: publish or update per-competitor Wiki child pages in the v2 candidate workflow.
+- `publishHtml`: upload the visual HTML report, shared CSS, JSON artifacts, and selected Listing/A+ images to MinIO S3.
 - `notifyMattermost`: send a Mattermost notification.
 
 The MCP manager must reject these fields unless `confirmSideEffects: true` is supplied.
@@ -63,8 +165,10 @@ Return business-useful fields first:
 
 1. Report title and short conclusion.
 2. Wiki link when published.
-3. Number of competitors analyzed and failures.
-4. Mattermost notification status when requested.
-5. Operational warnings such as AI timeout, Decodo failure, Wiki publish failure, or Mattermost credential failure.
+3. HTML latest/archive links and artifact publish status when requested.
+4. Number of competitors analyzed and failures.
+5. Mattermost notification status when requested.
+6. Image strategy status and its evidence limitations.
+7. Operational warnings such as AI timeout, Decodo failure, Wiki/HTML publish failure, or Mattermost credential failure.
 
 Never print API keys, bot tokens, or credential values.

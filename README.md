@@ -43,6 +43,8 @@ Usage guide: [docs/usage.md](./docs/usage.md)
 
 Workflow skill lifecycle and update plan: [docs/workflow-skill-lifecycle.md](./docs/workflow-skill-lifecycle.md)
 
+Unfinished n8n workflows that may become future business skills are tracked in [workflow-registry/candidates.md](./workflow-registry/candidates.md). Candidate workflows are not loaded by the MCP server and are not agent-callable until promoted to a top-level registry manifest.
+
 For a private repository, fixed n8n webhook URLs can be committed in `workflow-registry/*.json` as `transport.url`. For public or shared installs, use environment variables or local secret files under the installed MCP directory. Do not commit API keys, bot tokens, or credential values.
 
 ## Installation
