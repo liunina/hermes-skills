@@ -14,6 +14,12 @@
    node scripts/provision_amazon_listing_audit_v2.mjs
    ```
 
+   Render the latest completed run locally without calling AI or writing MinIO:
+
+   ```bash
+   node scripts/render_amazon_listing_audit_preview.mjs
+   ```
+
 3. Apply and publish after review:
 
    ```bash
