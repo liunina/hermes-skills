@@ -259,6 +259,7 @@ function buildPublisherWorkflow() {
     { name: 'runId' }, { name: 'asin' }, { name: 'marketplace' }, { name: 'reportLanguage' }, { name: 'status' },
     { name: 'listing', type: 'object' }, { name: 'visualAnalysis', type: 'object' }, { name: 'audit', type: 'object' },
     { name: 's3Bucket' }, { name: 's3Prefix' }, { name: 'publicBaseUrl' }, { name: 'deliveryBaseUrl' },
+    { name: 'shortBaseUrl' }, { name: 'useShortUrl', type: 'boolean' },
   ]);
   const generate = codeNode('Generate listing audit artifacts', [-440, 80], generateArtifactsCode.trim());
   const upload = node('Upload listing audit artifacts to MinIO', 'n8n-nodes-base.s3', 1, [-160, 80], {
@@ -269,23 +270,30 @@ function buildPublisherWorkflow() {
     onError: 'continueRegularOutput', retryOnFail: true, maxTries: 3, waitBetweenTries: 2000,
   });
   const done = codeNode('Return listing audit artifact links', [120, 80], returnPublishCode.trim());
-  const verify = node('Verify public listing audit report', 'n8n-nodes-base.httpRequest', 4.2, [344, 80], {
-    method: 'GET', url: '={{ $json.htmlReportUrl }}', options: {
+  const verifyGateway = node('Verify private listing audit gateway', 'n8n-nodes-base.httpRequest', 4.2, [344, 16], {
+    method: 'GET', url: '={{ $("Return listing audit artifact links").first().json.gatewayHtmlReportUrl }}', options: {
       response: { response: { fullResponse: true, neverError: true, responseFormat: 'text' } },
       timeout: 20000,
     },
   }, { onError: 'continueRegularOutput', retryOnFail: true, maxTries: 3, waitBetweenTries: 3000 });
-  const finalize = codeNode('Finalize listing report publication', [568, 80], verifyPublicationCode.trim());
+  const verifyShort = node('Verify short listing audit report URL', 'n8n-nodes-base.httpRequest', 4.2, [568, 80], {
+    method: 'GET', url: '={{ $("Return listing audit artifact links").first().json.htmlReportUrl }}', options: {
+      response: { response: { fullResponse: true, neverError: true, responseFormat: 'text' } },
+      timeout: 20000,
+    },
+  }, { onError: 'continueRegularOutput', retryOnFail: true, maxTries: 3, waitBetweenTries: 3000 });
+  const finalize = codeNode('Finalize listing report publication', [792, 80], verifyPublicationCode.trim());
   return {
     name: NAMES.publisher,
-    description: '将结构化 Amazon Listing 审计确定性渲染为单文件内联 CSS HTML，发布 MinIO latest、运行归档、JSON 与 manifest，并以匿名 GET 验证报告可交付。',
-    nodes: [sticky('Publisher architecture', [-720, -240], '## Deterministic HTML publisher\n\nNo AI-generated HTML. All model text is escaped before rendering. Uploads latest and immutable run artifacts, then verifies the public report URL before returning success.', 620, 230), trigger, generate, upload, done, verify, finalize],
+    description: '将结构化 Amazon Listing 审计确定性渲染为单文件内联 CSS HTML，发布 MinIO latest、运行归档、JSON 与 manifest，并验证短链接及私有网关回退均可交付。',
+    nodes: [sticky('Publisher architecture', [-720, -240], '## Deterministic HTML publisher\n\nNo AI-generated HTML. All model text is escaped before rendering. Uploads latest and immutable run artifacts, verifies the private gateway, then verifies the public short URL with an explicit fallback state.', 660, 240), trigger, generate, upload, done, verifyGateway, verifyShort, finalize],
     connections: {
       'When called to publish listing audit': main('Generate listing audit artifacts'),
       'Generate listing audit artifacts': main('Upload listing audit artifacts to MinIO'),
       'Upload listing audit artifacts to MinIO': main('Return listing audit artifact links'),
-      'Return listing audit artifact links': main('Verify public listing audit report'),
-      'Verify public listing audit report': main('Finalize listing report publication'),
+      'Return listing audit artifact links': main('Verify private listing audit gateway'),
+      'Verify private listing audit gateway': main('Verify short listing audit report URL'),
+      'Verify short listing audit report URL': main('Finalize listing report publication'),
     },
     settings: workflowSettings(180),
   };
@@ -324,7 +332,7 @@ function buildWorkerWorkflow({ fetchId, publisherId, tableId }) {
   const finalize = codeNode('Finalize audit result', [2784, 32], `const state = $input.first().json || {}; const auditValid = state.auditValidation?.valid === true && state.audit && typeof state.audit === 'object'; const visualStatus = state.visualStatus || state.visualAnalysis?.status || 'failed'; const status = auditValid ? (visualStatus === 'success' ? 'success' : 'partial') : 'failed'; return [{ json: { ...state, auditValid, status, phase: auditValid ? 'publishing' : 'analysis_failed', errorType: auditValid ? '' : 'invalid_audit_json', errorMessage: auditValid ? '' : (state.auditValidation?.errors || ['Invalid audit JSON']).join('; ') } }];`);
   const auditValid = ifNode('Audit JSON valid?', [3008, 32], '={{ $json.auditValid === true }}');
   const shouldPublish = ifNode('Should publish HTML?', [3232, -64], '={{ $json.publishHtml === true && $json.dryRun !== true }}');
-  const preparePublish = codeNode('Prepare listing HTML publish input', [3456, -160], `const state = $input.first().json || {}; return [{ json: { ...state, s3Bucket: 'amazon-reports', s3Prefix: 'amazon/listing-audits', publicBaseUrl: 'https://data.dinve.com/amazon-reports', deliveryBaseUrl: '${REPORT_GATEWAY_BASE_URL}' } }];`);
+  const preparePublish = codeNode('Prepare listing HTML publish input', [3456, -160], `const state = $input.first().json || {}; return [{ json: { ...state, s3Bucket: 'amazon-reports', s3Prefix: 'amazon/listing-audits', publicBaseUrl: 'https://data.dinve.com/amazon-reports', deliveryBaseUrl: '${REPORT_GATEWAY_BASE_URL}', shortBaseUrl: 'https://data.dinve.com', useShortUrl: true } }];`);
   const publish = executeWorkflowNode('Publish listing audit HTML', [3680, -160], publisherId, NAMES.publisher, true, { onError: 'continueRegularOutput' });
   const attachPublish = codeNode('Attach HTML publish result', [3904, -160], `const base = $('Prepare listing HTML publish input').first().json || {}; const result = $input.first().json || {}; return [{ json: { ...base, publishStatus: result.publishStatus || (result.ok ? 'success' : 'failed'), publishError: result.publishError || result.error?.message || '', htmlReportUrl: result.htmlReportUrl || '', htmlArchiveUrl: result.htmlArchiveUrl || '', artifacts: result.artifacts || [] } }];`);
   const skipPublish = codeNode('Skip HTML publish', [3456, 32], `const state = $input.first().json || {}; return [{ json: { ...state, publishStatus: state.dryRun ? 'dry_run' : 'disabled', htmlReportUrl: '', htmlArchiveUrl: '', artifacts: [] } }];`);

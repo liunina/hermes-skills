@@ -19,15 +19,23 @@ const bucket = clean(source.s3Bucket) || 'amazon-reports';
 const prefix = clean(source.s3Prefix || 'amazon/listing-audits').replace(/^\/+|\/+$/g, '');
 const publicBaseUrl = clean(source.publicBaseUrl || `https://data.dinve.com/${bucket}`).replace(/\/+$/, '');
 const deliveryBaseUrl = clean(source.deliveryBaseUrl).replace(/\/+$/, '');
+const shortBaseUrl = clean(source.shortBaseUrl || 'https://data.dinve.com').replace(/\/+$/, '');
+const useShortUrl = source.useShortUrl !== false && Boolean(shortBaseUrl);
 const latestBaseKey = `${prefix}/${asin}`;
 const archiveBaseKey = `${latestBaseKey}/runs/${runId}`;
 const latestHtmlKey = `${latestBaseKey}/index.html`;
 const archiveHtmlKey = `${archiveBaseKey}/index.html`;
 const reportDataKey = `${archiveBaseKey}/report.json`;
 const manifestKey = `${archiveBaseKey}/manifest.json`;
-const publicUrl = (key) => deliveryBaseUrl
+const objectUrl = (key) => `${publicBaseUrl}/${key}`;
+const gatewayUrl = (key) => deliveryBaseUrl
   ? `${deliveryBaseUrl}?key=${encodeURIComponent(key)}`
-  : `${publicBaseUrl}/${key}`;
+  : objectUrl(key);
+const deliveryUrl = (artifactType, key) => {
+  if (useShortUrl && artifactType === 'html_latest') return `${shortBaseUrl}/${latestBaseKey}/`;
+  if (useShortUrl && artifactType === 'html_archive') return `${shortBaseUrl}/${archiveBaseKey}/`;
+  return gatewayUrl(key);
+};
 const status = clean(source.status) || (visual.status === 'success' ? 'success' : 'partial');
 const statusLabel = status === 'success' ? '完整报告' : status === 'partial' ? '部分证据报告' : '生成失败';
 const tone = status === 'success' ? 'good' : status === 'partial' ? 'warn' : 'danger';
@@ -137,7 +145,17 @@ const html = `<!doctype html>
 const reportData = { runId, asin, status, listing, visualAnalysis: visual, audit, generatedAt: new Date().toISOString() };
 const manifest = { schemaVersion: 'amazon-listing-audit-artifact-v1', runId, asin, latestHtmlKey, archiveHtmlKey, reportDataKey, generatedAt: reportData.generatedAt };
 const artifact = (artifactType, s3Key, content, mimeType) => ({
-  json: { artifactType, s3Key, publicUrl: publicUrl(s3Key), contentType: mimeType, runId, asin },
+  json: {
+    artifactType,
+    s3Key,
+    publicUrl: deliveryUrl(artifactType, s3Key),
+    gatewayUrl: gatewayUrl(s3Key),
+    objectUrl: objectUrl(s3Key),
+    contentType: mimeType,
+    runId,
+    asin,
+    useShortUrl,
+  },
   binary: { data: { data: Buffer.from(content, 'utf8').toString('base64'), fileName: s3Key.split('/').pop(), mimeType } },
 });
 return [

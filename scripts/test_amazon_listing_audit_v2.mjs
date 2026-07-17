@@ -75,6 +75,7 @@ const artifacts = runCode(renderCode, {
       first: () => ({ json: {
         runId: 'listing_test_001', asin: jp.asin, marketplace: jp.marketplace, reportLanguage: 'zh-CN', status: 'partial',
         deliveryBaseUrl: 'https://workflow.example/webhook/amazon-listing-audit-report',
+        shortBaseUrl: 'https://data.example', useShortUrl: true,
         listing: { asin: jp.asin, marketplace: jp.marketplace, title: '轻量背包 <script>alert(1)</script>', brand: 'Example', price: '¥4,980', rating: 4.3, reviewCount: 125, images: ['https://example.com/main.jpg'] },
         visualAnalysis: { status: 'partial' }, audit,
       } }),
@@ -85,8 +86,9 @@ assert.equal(artifacts.length, 4);
 const html = Buffer.from(artifacts[0].binary.data.data, 'base64').toString('utf8');
 assert.match(html, /<!doctype html>/i);
 assert.match(artifacts[0].json.s3Key, /amazon\/listing-audits/i);
-assert.match(artifacts[0].json.publicUrl, /^https:\/\/workflow\.example\/webhook\/amazon-listing-audit-report\?key=/);
-assert.match(artifacts[0].json.publicUrl, /amazon%2Flisting-audits%2FB0DPHNQKT5%2Findex\.html/);
+assert.equal(artifacts[0].json.publicUrl, 'https://data.example/amazon/listing-audits/B0DPHNQKT5/');
+assert.match(artifacts[0].json.gatewayUrl, /^https:\/\/workflow\.example\/webhook\/amazon-listing-audit-report\?key=/);
+assert.match(artifacts[0].json.gatewayUrl, /amazon%2Flisting-audits%2FB0DPHNQKT5%2Findex\.html/);
 assert.doesNotMatch(html, /<script>alert\(1\)<\/script>/i);
 assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/i);
 assert.doesNotMatch(html, /清洁原理|4段模式|コードレス充電|刀头|充电续航/);
@@ -96,28 +98,54 @@ const publication = {
   ok: true,
   publishStatus: 'success',
   publishError: '',
-  htmlReportUrl: 'https://data.example/amazon-reports/amazon/listing-audits/B0DPHNQKT5/index.html',
-  htmlArchiveUrl: 'https://data.example/amazon-reports/amazon/listing-audits/B0DPHNQKT5/runs/listing_test_001/index.html',
+  useShortUrl: true,
+  htmlReportUrl: 'https://data.example/amazon/listing-audits/B0DPHNQKT5/',
+  htmlArchiveUrl: 'https://data.example/amazon/listing-audits/B0DPHNQKT5/runs/listing_test_001/',
+  gatewayHtmlReportUrl: 'https://workflow.example/webhook/amazon-listing-audit-report?key=latest',
+  gatewayHtmlArchiveUrl: 'https://workflow.example/webhook/amazon-listing-audit-report?key=archive',
 };
 const delivered = runCode(verifyPublicationCode, {
   input: { statusCode: 200, body: html },
-  nodes: { 'Return listing audit artifact links': { first: () => ({ json: publication }) } },
+  nodes: {
+    'Return listing audit artifact links': { first: () => ({ json: publication }) },
+    'Verify private listing audit gateway': { first: () => ({ json: { statusCode: 200, body: html } }) },
+  },
 })[0].json;
 assert.equal(delivered.publishStatus, 'success');
 assert.equal(delivered.deliveryStatus, 'success');
+assert.equal(delivered.deliveryMode, 'short_url');
 assert.equal(delivered.htmlReportUrl, publication.htmlReportUrl);
 
 const deliveredFromData = runCode(verifyPublicationCode, {
   input: { statusCode: 200, data: html },
-  nodes: { 'Return listing audit artifact links': { first: () => ({ json: publication }) } },
+  nodes: {
+    'Return listing audit artifact links': { first: () => ({ json: publication }) },
+    'Verify private listing audit gateway': { first: () => ({ json: { statusCode: 200, data: html } }) },
+  },
 })[0].json;
 assert.equal(deliveredFromData.publishStatus, 'success');
 assert.equal(deliveredFromData.deliveryStatus, 'success');
 assert.equal(deliveredFromData.htmlReportUrl, publication.htmlReportUrl);
 
+const gatewayFallback = runCode(verifyPublicationCode, {
+  input: { statusCode: 502, data: 'Bad Gateway' },
+  nodes: {
+    'Return listing audit artifact links': { first: () => ({ json: publication }) },
+    'Verify private listing audit gateway': { first: () => ({ json: { statusCode: 200, data: html } }) },
+  },
+})[0].json;
+assert.equal(gatewayFallback.publishStatus, 'partial');
+assert.equal(gatewayFallback.deliveryStatus, 'fallback');
+assert.equal(gatewayFallback.deliveryMode, 'gateway_fallback');
+assert.equal(gatewayFallback.htmlReportUrl, publication.gatewayHtmlReportUrl);
+assert.match(gatewayFallback.publishError, /short_report_unavailable: HTTP 502/);
+
 const inaccessible = runCode(verifyPublicationCode, {
   input: { statusCode: 403, body: '<Error><Code>AccessDenied</Code></Error>' },
-  nodes: { 'Return listing audit artifact links': { first: () => ({ json: publication }) } },
+  nodes: {
+    'Return listing audit artifact links': { first: () => ({ json: publication }) },
+    'Verify private listing audit gateway': { first: () => ({ json: { statusCode: 403, body: '<Error><Code>AccessDenied</Code></Error>' } }) },
+  },
 })[0].json;
 assert.equal(inaccessible.publishStatus, 'failed');
 assert.equal(inaccessible.deliveryStatus, 'failed');
@@ -133,6 +161,7 @@ console.log(JSON.stringify({
   publicationVerification: {
     bodySuccess: delivered.deliveryHttpStatus,
     dataSuccess: deliveredFromData.deliveryHttpStatus,
+    gatewayFallback: gatewayFallback.gatewayDeliveryHttpStatus,
     denied: inaccessible.deliveryHttpStatus,
   },
 }, null, 2));
