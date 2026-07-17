@@ -93,6 +93,13 @@ assert.doesNotMatch(html, /<script>alert\(1\)<\/script>/i);
 assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/i);
 assert.doesNotMatch(html, /清洁原理|4段模式|コードレス充電|刀头|充电续航/);
 assert.match(html, /軽量デイパック/);
+assert.match(html, /Amazon Listing Intelligence/i);
+assert.match(html, /class="hero-product"/);
+assert.match(html, /经营决策总览/);
+assert.match(html, /class="evidence-wall"/);
+assert.match(html, /P0 \/ P1 \/ P2 执行路线图/);
+const reportData = JSON.parse(Buffer.from(artifacts[2].binary.data.data, 'base64').toString('utf8'));
+assert.equal(reportData.rendererVersion, 'amazon-listing-audit-html-v2');
 
 const publication = {
   ok: true,

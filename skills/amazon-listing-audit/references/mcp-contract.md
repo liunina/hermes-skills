@@ -112,6 +112,8 @@ Query returns HTTP `200` for an existing row and `404` for an unknown `runId`.
 
 ## Report Delivery
 
+The current deterministic renderer is `amazon-listing-audit-html-v2`. It presents a product-first hero, executive decision overview, metric strip, top priorities, per-image visual evidence wall, copy comparison, A+ blueprint, compliance limits, and a P0/P1/P2 execution roadmap. AI output is never used as raw HTML; all model and Listing text is escaped before rendering.
+
 - Bucket: `amazon-reports` (private)
 - Latest HTML: `amazon/listing-audits/{ASIN}/index.html`
 - Immutable HTML: `amazon/listing-audits/{ASIN}/runs/{runId}/index.html`
