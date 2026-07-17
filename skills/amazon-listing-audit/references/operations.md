@@ -50,6 +50,7 @@ The scripts require `N8N_API_KEY` in the environment. Authenticated webhook smok
 | Visual status fails/partial | Gemini subworkflow and image cache | Keep audit evidence-bounded; do not infer failed images |
 | Audit JSON invalid | OpenAI node and compact retry | Inspect validation errors and prompt/schema versions; do not repeat Decodo/Gemini |
 | `publishStatus: failed` with HTTP 200 | Publisher verification response shape | HTTP Request 4.2 returns text in `data`; verifier supports both `body` and `data` |
+| `deliveryMode: gateway_fallback` | Nginx short route | Report remains available through n8n; repair `/amazon/listing-audits/` routing and rerun |
 | Gateway returns 400 | `key` query | Only the two allowlisted HTML key shapes are valid |
 | Gateway returns 404 | MinIO object and S3 credential | Confirm the HTML object exists in `amazon-reports` |
 | Mattermost notification fails | Notification component and channel ID | Confirm component credential and HTTPS callback handling without logging callback URLs |
@@ -59,6 +60,7 @@ The scripts require `N8N_API_KEY` in the environment. Authenticated webhook smok
 - Keep `amazon-reports` private. Do not grant anonymous bucket write or broad anonymous read.
 - n8n accesses MinIO with the `MinIO S3 - Amazon Reports` credential.
 - The report gateway exposes only allowlisted HTML objects and returns JSON errors for invalid/unavailable keys.
+- Canonical short URLs use `https://data.dinve.com/amazon/listing-audits/{ASIN}/`; Nginx internally proxies them to the report gateway without exposing the MinIO bucket.
 - Report HTML escapes untrusted Listing and AI text before rendering.
 - Product images are loaded from allowlisted HTTPS Amazon media URLs. Their availability remains dependent on the upstream host.
 - n8n may replace the custom `Content-Security-Policy` response header with its own sandbox CSP. Do not claim the custom header is authoritative; verify the effective response headers after n8n upgrades.

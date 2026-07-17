@@ -118,7 +118,10 @@ Query returns HTTP `200` for an existing row and `404` for an unknown `runId`.
 - Structured data: `amazon/listing-audits/{ASIN}/runs/{runId}/report.json`
 - Manifest: `amazon/listing-audits/{ASIN}/runs/{runId}/manifest.json`
 - Gateway: `https://workflow.dinve.com/webhook/amazon-listing-audit-report-v2-5c0a8f2b?key=<encoded-object-key>`
+- Latest short URL: `https://data.dinve.com/amazon/listing-audits/{ASIN}/`
+- Immutable short URL: `https://data.dinve.com/amazon/listing-audits/{ASIN}/runs/{runId}/`
 
 The unauthenticated gateway only accepts the latest or immutable `index.html` key pattern. It rejects `report.json`, `manifest.json`, arbitrary objects, traversal, and non-allowlisted prefixes. Anyone with a valid report URL can read that HTML, so do not put secrets or private customer data in reports.
 
 Upload success alone is insufficient. The publisher fetches the gateway URL and requires HTTP 200 plus an HTML doctype before returning `publishStatus: success`.
+It then verifies the Nginx short URL. A healthy short URL becomes the canonical `htmlReportUrl`; if the short route fails while the private gateway remains healthy, the run returns the gateway URL with `publishStatus: partial` and `deliveryMode: gateway_fallback`.
